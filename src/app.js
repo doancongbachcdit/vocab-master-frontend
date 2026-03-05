@@ -6,7 +6,7 @@ import { API_BASE_URL, SRS_INTERVALS, AppState, resetAppState } from './config.j
 import { gradeAnswer, getAIHint, generateAIQuestions } from './ai-services.js';
 import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBackend, updateWordSRSToBackend, deleteAllWordsFromFirebase } from './api.js';
 import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode } from './quiz.js';
-import { renderList, switchTab } from './ui.js';
+import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
 
 
 // 3. LOGIC DOM & SỰ KIỆN KHỞI TẠO
@@ -188,13 +188,18 @@ onAuthStateChanged(auth, async (user) => {
 
 // 5. DATABASE SQL SERVER
 async function loadDataFromCloud() {
+    showLoader("⏳ Đang tải dữ liệu từ máy chủ...");
     document.getElementById('reviewStatus').innerHTML = "⏳ Đang kết nối CSDL...";
     try {
         AppState.cachedWords = await fetchAllWords(AppState.currentUser.uid);
         updateSRSStatus();
         if (document.getElementById('list').classList.contains('active')) renderList();
         if (document.getElementById('quiz').classList.contains('active')) resetQuiz();
-    } catch (error) { alert("Lỗi tải dữ liệu: " + error.message); }
+    } catch (error) {
+        alert("Lỗi tải dữ liệu: " + error.message);
+    } finally {
+        hideLoader();
+    }
 }
 
 
@@ -267,6 +272,7 @@ async function deleteAllWords() {
     if (!confirm(`⚠️ CẢNH BÁO NGUY HIỂM:\nBạn có chắc chắn muốn XÓA VĨNH VIỄN toàn bộ ${AppState.cachedWords.length} từ vựng hiện có không? Hành động này KHÔNG THỂ HOÀN TÁC!`)) return;
 
     try {
+        showLoader("⏳ Đang dọn dẹp dữ liệu máy chủ...");
         document.getElementById('reviewStatus').innerHTML = "⏳ Đang dọn dẹp mây...";
 
         // Quét vòng lặp và xóa từng từ trên Firebase thông qua API
@@ -280,6 +286,8 @@ async function deleteAllWords() {
         alert("✅ Đã dọn sạch bong!");
     } catch (e) {
         alert("Lỗi khi xóa: " + e.message);
+    } finally {
+        hideLoader();
     }
 
 }
@@ -328,12 +336,15 @@ async function importCSV() {
             document.getElementById('reviewStatus').innerHTML = `⏳ Đang nạp ${newItems.length} từ...`;
 
             try {
+                showLoader(`⏳ Đang nạp ${newItems.length} từ...`);
                 await importCSVToBackend(newItems);
                 alert("✅ Đã nạp thành công!");
                 await loadDataFromCloud();
             } catch (error) {
                 alert("Lỗi khi nạp CSV: " + error.message);
                 document.getElementById('reviewStatus').innerHTML = "Lỗi nạp CSV";
+            } finally {
+                hideLoader();
             }
 
         } else {

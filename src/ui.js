@@ -5,6 +5,23 @@ import { deleteWordFromBackend } from './api.js';
 import { updateSRSStatus } from './quiz.js';
 import { deleteWord } from './app.js'; // Tạm mượn hàm deleteWord
 
+// --- HÀM ĐIỀU KHIỂN LOADING TOÀN CỤC ---
+export function showLoader(text = "Đang xử lý...") {
+    const loader = document.getElementById('globalLoader');
+    const textEl = document.getElementById('loaderText');
+    if (loader && textEl) {
+        textEl.innerText = text;
+        loader.style.display = 'flex';
+    }
+}
+
+export function hideLoader() {
+    const loader = document.getElementById('globalLoader');
+    if (loader) {
+        loader.style.display = 'none';
+    }
+}
+
 // Thêm debounce để tối ưu hóa việc tìm kiếm
 let listRenderTimeout;
 
