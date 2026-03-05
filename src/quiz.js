@@ -76,7 +76,24 @@ export function nextQuestion() {
     const pool = document.getElementById('quizFilter').value === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
     if (pool.length < 4) return showEmpty();
 
-    const distractors = pool.filter(x => x.id !== questionItem.id).sort(() => 0.5 - Math.random()).slice(0, 3);
+    const distractors = [];
+    const usedMeanings = new Set([questionItem.m.trim().toLowerCase()]);
+    const shuffledPool = pool.filter(x => x.id !== questionItem.id).sort(() => 0.5 - Math.random());
+
+    for (const item of shuffledPool) {
+        const m = item.m.trim().toLowerCase();
+        if (!usedMeanings.has(m)) {
+            usedMeanings.add(m);
+            distractors.push(item);
+        }
+        if (distractors.length === 3) break;
+    }
+
+    // Fallback trong trường hợp đặc biệt không đủ từ có nghĩa khác nhau
+    if (distractors.length < 3) {
+        const extra = shuffledPool.filter(x => !distractors.includes(x)).slice(0, 3 - distractors.length);
+        distractors.push(...extra);
+    }
     const options = [questionItem, ...distractors].sort(() => 0.5 - Math.random());
 
     const qData = { correct: questionItem, options: options, selectedId: null, isAnswered: false };
