@@ -577,3 +577,61 @@ async function importCSV() {
     };
     reader.readAsText(file);
 }
+
+async function fetchDevToArticles(forceRefresh = true) {
+    const feedDiv = document.getElementById('devtoFeed');
+
+    // Xóa nội dung cũ khi ép tải lại
+    if (forceRefresh) feedDiv.innerHTML = '';
+    else if (feedDiv.innerHTML.trim() !== '') return;
+
+    showLoader("⏳ Đang kéo bài viết từ Dev.to...");
+    try {
+        const response = await fetch('https://dev.to/api/articles?tag=programming&top=7');
+        if (!response.ok) throw new Error("Mạng lỗi khi tải bài viết.");
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
+            feedDiv.innerHTML = '<p style="text-align:center;">Không có bài viết nào để hiển thị.</p>';
+            return;
+        }
+
+        const latestArticles = data.slice(0, 5);
+
+        latestArticles.forEach(item => {
+            const articleCard = document.createElement('div');
+            articleCard.className = 'card';
+            articleCard.style.padding = '15px';
+            articleCard.style.marginBottom = '15px';
+            articleCard.style.borderLeft = '4px solid #3b82f6';
+
+            // Generate Tags UI
+            let tagsHtml = '';
+            if (item.tag_list && item.tag_list.length > 0) {
+                tagsHtml = item.tag_list.slice(0, 3).map(tag => `<span style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.75em; margin-right:5px;">#${tag}</span>`).join('');
+            }
+
+            articleCard.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="flex: 1;">
+                        <h4 style="margin: 0 0 8px 0; color: var(--text-color); font-size: 1.1em;">
+                            <a href="${item.url}" target="_blank" style="text-decoration: none; color: #1d4ed8;">${item.title}</a>
+                        </h4>
+                        <div style="font-size: 0.85em; color: #64748b; margin-bottom: 8px;">
+                            ✍️ Bởi: <b>${item.user.name}</b> | 📅 Xuất bản: ${new Date(item.published_at).toLocaleDateString()}
+                        </div>
+                        <div style="margin-bottom: 8px;">${tagsHtml}</div>
+                        <p style="font-size: 0.9em; color: #475569; margin: 0; line-height: 1.4;">
+                            ${item.description || 'Không có tóm tắt...'}
+                        </p>
+                    </div>
+                </div>
+            `;
+            feedDiv.appendChild(articleCard);
+        });
+    } catch (e) {
+        feedDiv.innerHTML = `<p style="text-align:center; color:red;">Lỗi tải bài viết: ${e.message}</p>`;
+    } finally {
+        hideLoader();
+    }
+}
