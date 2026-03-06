@@ -238,7 +238,7 @@ async function loadDataFromCloud() {
     try {
         AppState.cachedWords = []; // Reset kho từ cục bộ
         let currPage = 1;
-        const limit = 50;
+        const limit = 500;
         let keepFetching = true;
 
         while (keepFetching) {
