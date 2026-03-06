@@ -119,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Data Elements
     document.getElementById('btnAddWord').addEventListener('click', addWord);
     document.getElementById('btnAutoFill').addEventListener('click', autoFillWord);
+    document.getElementById('btnRefreshFeed').addEventListener('click', () => fetchDevToArticles(true));
     // Ẩn/Hiện 3 ô Giải phẫu từ tùy theo ngôn ngữ (EN / CN)
     const inpLangEl = document.getElementById('inpLang');
     if (inpLangEl) {
@@ -132,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     document.getElementById('btnDownloadSample').addEventListener('click', downloadSample);
     document.getElementById('btnImportCSV').addEventListener('click', importCSV);
-    document.getElementById('btnExportJSON').addEventListener('click', () => exportJSON(cachedWords));
+    document.getElementById('btnExportJSON').addEventListener('click', () => exportJSON(AppState.cachedWords));
     document.getElementById('btnDeleteAll').addEventListener('click', deleteAllWords);
 
     // List Search Element
@@ -167,6 +168,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// Hàm chuyển tab
+window.switchTab = function (tabId) {
+    document.querySelectorAll('.content').forEach(tab => {
+        if (tab.id === tabId) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        if (btn.getAttribute('data-tab') === tabId) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    if (tabId === 'list') renderList();
+    if (tabId === 'quiz') resetQuiz();
+    if (tabId === 'reading') {
+        const feedDiv = document.getElementById('devtoFeed');
+        if (feedDiv && feedDiv.innerHTML.trim() === '') {
+            fetchDevToArticles(false);
+        }
+    }
+}
 
 // 4. LOGIC ĐĂNG NHẬP
 onAuthStateChanged(auth, async (user) => {
