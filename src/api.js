@@ -41,6 +41,8 @@ export async function updateWordSRSToBackend(id, newLevel, newNextReview, newEas
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+            w: "-",
+            m: "-",
             level: newLevel,
             nextReview: newNextReview,
             easeFactor: newEaseFactor,
