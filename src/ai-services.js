@@ -56,14 +56,33 @@ export async function getAIHint() {
     hintArea.innerHTML = '<span style="color: #92400e; font-style: italic;">⏳ Thầy giáo AI đang vắt óc tìm gợi ý...</span>';
 
     const langName = AppState.currentQuizItem.l === 'CN' ? 'tiếng Trung' : 'tiếng Anh';
+    const lang = AppState.currentQuizItem.l;
     const word = AppState.currentQuizItem.w;
+    const meaning = AppState.currentQuizItem.m;
+    const pinyin = AppState.currentQuizItem.p || '';
 
-    const prompt = `Từ vựng hiện tại là "${word}" (${langName}). Bách đang học và đã quên mất nghĩa của từ này.
-    Hãy giúp Bách nhớ lại bằng 1 trong 2 cách sau:
-    1. Đưa ra một câu gợi ý tình huống bằng ${langName} siêu dễ hiểu (kiểu điền vào chỗ trống).
-    2. Đưa ra một mẹo nhớ (Mnemonic) vui nhộn, hài hước bằng tiếng Việt liên quan đến cách phát âm hoặc hình dáng chữ.
-    QUAN TRỌNG: TUYỆT ĐỐI KHÔNG được dịch trực tiếp nghĩa của từ "${word}" ra tiếng Việt để Bách tự đoán.
-    Trình bày siêu ngắn gọn (1-2 dòng), dùng icon cho sinh động.`;
+    let prompt = "";
+
+    if (lang === 'EN') {
+        prompt = `Đóng vai một chuyên gia ngôn ngữ học. Tôi đang cần nhớ từ vựng tiếng Anh: '${word}' (Nghĩa là: ${meaning}).
+Hãy cho tôi MỘT gợi ý ngắn gọn bằng tiếng Việt (tối đa 3 câu) để tôi tự đoán ra từ này. BẮT BUỘC tuân thủ:
+KHÔNG được nhắc trực tiếp đến từ '${word}' hoặc nghĩa tiếng Việt '${meaning}' trong câu trả lời.
+Hãy gợi ý dựa trên giải phẫu từ (Tiền tố/Hậu tố/Gốc từ tiếng Latinh) nếu có.
+Hoặc đưa ra một từ đồng nghĩa/trái nghĩa phổ biến.
+Giọng điệu hài hước, kích thích sự tò mò, dùng icon cho sinh động.`;
+    } else if (lang === 'CN') {
+        prompt = `Đóng vai một thầy giáo dạy tiếng Trung cổ điển. Tôi đang cần nhớ từ vựng tiếng Trung: '${word}' (Nghĩa là: ${meaning}, Phiên âm: ${pinyin}).
+Hãy cho tôi MỘT gợi ý ngắn gọn bằng tiếng Việt (tối đa 3 câu) để tôi nhớ cách viết và ý nghĩa của từ này. BẮT BUỘC tuân thủ:
+KHÔNG dịch thẳng nghĩa '${meaning}' để tôi tự đoán.
+Hãy phân tích CHIẾT TỰ (chữ này được ghép từ những bộ thủ nào, ý nghĩa của từng bộ thủ là gì).
+Vẽ ra một câu chuyện hình ảnh logic hoặc hài hước liên kết các bộ thủ đó lại với nhau để hình thành nên nghĩa của từ.
+Nhắc nhẹ về cách phát âm (${pinyin}) nếu nó là chữ Hình Thanh. Dùng icon cho sinh động.`;
+    } else {
+        prompt = `Từ vựng hiện tại là "${word}" (${langName}, nghĩa: ${meaning}). Bách đang học và đã quên mất nghĩa của từ này.
+Hãy giúp Bách nhớ lại bằng một câu gợi ý tình huống bằng ${langName} siêu dễ hiểu (kiểu điền vào chỗ trống).
+QUAN TRỌNG: TUYỆT ĐỐI KHÔNG được dịch trực tiếp nghĩa của từ "${word}" ra tiếng Việt để Bách tự đoán.
+Trình bày siêu ngắn gọn (1-2 dòng), dùng icon cho sinh động.`;
+    }
 
     try {
         const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
