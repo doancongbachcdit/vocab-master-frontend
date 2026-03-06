@@ -120,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnAddWord').addEventListener('click', addWord);
     document.getElementById('btnAutoFill').addEventListener('click', autoFillWord);
     document.getElementById('btnRefreshFeed').addEventListener('click', () => fetchDevToArticles(true));
+    document.getElementById('btnRefreshYoutube').addEventListener('click', () => fetchYouTubeVideos(true));
     // Ẩn/Hiện 3 ô Giải phẫu từ tùy theo ngôn ngữ (EN / CN)
     const inpLangEl = document.getElementById('inpLang');
     if (inpLangEl) {
@@ -193,6 +194,12 @@ window.switchTab = function (tabId) {
         const feedDiv = document.getElementById('devtoFeed');
         if (feedDiv && feedDiv.innerHTML.trim() === '') {
             fetchDevToArticles(false);
+        }
+    }
+    if (tabId === 'listening') {
+        const ytDiv = document.getElementById('youtubeFeed');
+        if (ytDiv && ytDiv.innerHTML.trim() === '') {
+            fetchYouTubeVideos(false);
         }
     }
 }
@@ -428,6 +435,67 @@ async function deleteAllWords() {
         hideLoader();
     }
 
+}
+
+async function fetchYouTubeVideos(forceRefresh = true) {
+    const feedDiv = document.getElementById('youtubeFeed');
+    const channelId = document.getElementById('ytChannelSelect').value;
+
+    // Xóa nội dung cũ khi ép tải lại
+    if (forceRefresh) feedDiv.innerHTML = '';
+    else if (feedDiv.innerHTML.trim() !== '') return;
+
+    showLoader("⏳ Đang kéo video từ YouTube...");
+    try {
+        // Dùng trick đọc RSS của Youtube thông qua con trung gian rss2json để không tốn API Key
+        const rssUrl = encodeURIComponent(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+        const response = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${rssUrl}`);
+        if (!response.ok) throw new Error("Mạng lỗi khi tải video.");
+        const data = await response.json();
+
+        if (!data.items || data.items.length === 0) {
+            feedDiv.innerHTML = '<p style="text-align:center;">Không có video nào để hiển thị.</p>';
+            return;
+        }
+
+        // Chỉ lôi 5 video mới nhất ra cho đỡ giật
+        const latestVideos = data.items.slice(0, 5);
+
+        latestVideos.forEach(item => {
+            // Cấu trúc link item.link là https://www.youtube.com/watch?v=XXXXXXX
+            const videoIdMatch = item.link.match(/v=([^&]+)/);
+            const videoId = videoIdMatch ? videoIdMatch[1] : '';
+
+            if (videoId) {
+                const articleCard = document.createElement('div');
+                articleCard.className = 'card';
+                articleCard.style.padding = '0';
+                articleCard.style.overflow = 'hidden';
+                articleCard.style.marginBottom = '0';
+
+                articleCard.innerHTML = `
+                    <div style="padding: 15px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+                        <h4 style="margin: 0; color: var(--text-color); font-size: 1.1em;">
+                            <a href="${item.link}" target="_blank" style="text-decoration: none; color: inherit;">${item.title}</a>
+                        </h4>
+                        <div style="font-size: 0.85em; color: #64748b; margin-top: 5px;">📅 Xuất bản: ${new Date(item.pubDate).toLocaleDateString()}</div>
+                    </div>
+                    <div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+                        <iframe style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;" 
+                                src="https://www.youtube.com/embed/${videoId}?rel=0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+                feedDiv.appendChild(articleCard);
+            }
+        });
+    } catch (e) {
+        feedDiv.innerHTML = `<p style="text-align:center; color:red;">Lỗi tải video: ${e.message}</p>`;
+    } finally {
+        hideLoader();
+    }
 }
 
 async function importCSV() {

@@ -39,6 +39,7 @@
 
     <div class="tabs" id="mainTabs">
         <button class="tab-btn active" data-tab="quiz">🧠 Học Tập</button>
+        <button class="tab-btn" data-tab="listening">🎧 Luyện Nghe</button>
         <button class="tab-btn" data-tab="reading">📖 Luyện Đọc</button>
         <button class="tab-btn" data-tab="data">📂 Dữ Liệu</button>
         <button class="tab-btn" data-tab="list">📚 Danh Sách</button>
@@ -182,6 +183,29 @@
         <!-- Nơi chứa các bài tựa tin tức -->
         <div id="devtoFeed" style="display: flex; flex-direction: column; gap: 15px;">
             <!-- Bài viết sẽ được JS sinh ra ở đây -->
+        </div>
+    </div>
+
+    <!-- TAB: LUYỆN NGHE (YOUTUBE) -->
+    <div id="listening" class="content">
+        <div class="card" style="text-align: center; margin-bottom: 20px;">
+            <h3>🎥 Phòng Luyện Nghe (Ted-Ed, Dev Podcasts)</h3>
+            <p style="color: #64748b; font-size: 0.9em; margin-bottom: 15px;">
+                Chọn một kênh chất lượng để luyện dôi tai và trau dồi chuyên môn ngay nào!
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
+                <select id="ytChannelSelect" style="max-width: 250px;">
+                    <option value="UCsBjURrPoezykLs9EqgamOA">🔥 Fireship (Code thủ)</option>
+                    <option value="UCsooa4yRKGN_zEE8iknghZA">🧠 TED-Ed (Kiến thức chung)</option>
+                    <option value="UC8butISFwT-Wl7EV0hUK0BQ">💻 freeCodeCamp (Dev Podcasts)</option>
+                </select>
+                <button class="btn btn-primary" id="btnRefreshYoutube" style="margin: 0;">Đổi Kênh / Tải Lại</button>
+            </div>
+        </div>
+
+        <!-- Nơi chứa các video youtube nhúng -->
+        <div id="youtubeFeed" style="display: flex; flex-direction: column; gap: 20px;">
+            <!-- Iframe Video sẽ được JS sinh ra ở đây -->
         </div>
     </div>
 
