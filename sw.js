@@ -1,5 +1,5 @@
 // Đổi tên cache để ép máy tải lại bản mới nhất
-const CACHE_NAME = 'vocab-pro-v7';
+const CACHE_NAME = 'vocab-pro-v8';
 
 // Danh sách các file cần lưu Offline (Bao gồm cả thư viện Google và Icon)
 const ASSETS = [
@@ -20,9 +20,24 @@ const ASSETS = [
 
 // 1. Cài đặt Service Worker và tải file vào Cache
 self.addEventListener('install', (e) => {
+  self.skipWaiting(); // Ép kích hoạt ngay lập tức bản mới không cần chờ
   e.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
+});
+
+// 1.5. Xóa Cache cũ đi dọn dẹp dung lượng và nhường chỗ cho bản mới
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((keyList) => {
+      return Promise.all(keyList.map((key) => {
+        if (key !== CACHE_NAME) {
+          return caches.delete(key);
+        }
+      }));
+    })
+  );
+  self.clients.claim(); // Chiếm quyền điều khiển trang web ngay lập tức
 });
 
 // 2. Chặn và xử lý khi mất mạng
