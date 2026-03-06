@@ -1,5 +1,5 @@
 // src/quiz.js
-import { AppState, SRS_INTERVALS } from './config.js';
+import { AppState } from './config.js';
 import { speakText } from './utils.js';
 import { generateAIQuestions } from './ai-services.js';
 import { updateWordSRSToBackend } from './api.js';
@@ -152,8 +152,16 @@ export function renderQuestion(q) {
     });
 
     document.getElementById('btnPrev').disabled = (AppState.historyIndex <= 0);
+    document.getElementById('sm2Actions').style.display = 'none';
+
     if (q.isAnswered) {
-        document.getElementById('btnNext').style.visibility = 'visible';
+        if (q.selectedId === q.correct.id && !AppState.isCramMode) {
+            document.getElementById('sm2Actions').style.display = 'flex';
+            document.getElementById('btnNext').style.visibility = 'hidden';
+        } else {
+            document.getElementById('btnNext').style.visibility = 'visible';
+            document.getElementById('sm2Actions').style.display = 'none';
+        }
         document.getElementById('qMsg').innerHTML = (q.selectedId === q.correct.id) ? "<span style='color:var(--success)'>Chính xác! 🎉</span>" : "<span style='color:var(--danger)'>Sai rồi!</span>";
     } else { document.getElementById('btnNext').style.visibility = 'hidden'; }
 }
@@ -173,25 +181,76 @@ export async function handleAnswer(btn, selected, correct) {
     const isCorrect = (selected.id === correct.id);
     if (isCorrect) {
         btn.classList.add('correct');
-        document.getElementById('qMsg').innerHTML = "<span style='color:var(--success)'>Chính xác! 🎉</span>";
+        document.getElementById('qMsg').innerHTML = "<span style='color:var(--success)'>Chính xác! 🎉 Chọn mức độ nhớ:</span>";
         if (!AppState.isCramMode) {
-            const newLevel = (correct.level || 0) + 1;
-            const nextDate = Date.now() + ((SRS_INTERVALS[newLevel] || 180) * 24 * 60 * 60 * 1000);
-            await updateWordSRS(correct.id, newLevel, nextDate);
+            document.getElementById('btnNext').style.visibility = 'hidden';
+            document.getElementById('sm2Actions').style.display = 'flex';
+        } else {
+            document.getElementById('btnNext').style.visibility = 'visible';
         }
     } else {
         btn.classList.add('wrong');
         document.querySelectorAll('.opt-btn').forEach(b => { if (b.innerText === correct.m) b.classList.add('correct'); });
         document.getElementById('qMsg').innerHTML = "<span style='color:var(--danger)'>Sai rồi!</span>";
-        if (!AppState.isCramMode) await updateWordSRS(correct.id, 0, 0);
+        document.getElementById('btnNext').style.visibility = 'visible';
+        document.getElementById('sm2Actions').style.display = 'none';
+        // Sai => Đặt lại Interval=1, Level=0, EF=2.5 (hoặc EF cũ mượn tạm)
+        let oldEF = correct.easeFactor !== undefined ? correct.easeFactor : 2.5;
+        let newEF = Math.max(1.3, oldEF - 0.2); // Tùy chỉnh phạt EF khi sai
+        if (!AppState.isCramMode) await updateWordSRS(correct.id, 0, Date.now() + 86400000, newEF, 1);
     }
 }
 
-export async function updateWordSRS(id, newLevel, newNextReview) {
+export async function handleSM2Rating(quality) {
+    if (!AppState.currentQuizItem) return;
+    const word = AppState.currentQuizItem;
+
+    // Thuật toán cốt lõi SM-2
+    let easeFactor = word.easeFactor !== undefined ? word.easeFactor : 2.5;
+    let interval = word.interval !== undefined ? word.interval : 0;
+    let level = word.level !== undefined ? word.level : 0;
+
+    // Tính EF mới
+    easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+    easeFactor = Math.max(1.3, easeFactor); // Không bao giờ tụt dưới 1.3
+
+    if (quality < 3) {
+        // Trả lời sai/nhớ kém -> Trở về vạch xuất phát
+        level = 0;
+        interval = 1;
+    } else {
+        // Nhớ được
+        if (level === 0) {
+            interval = 1;
+        } else if (level === 1) {
+            interval = 6;
+        } else {
+            interval = Math.round(interval * easeFactor);
+        }
+        level++;
+    }
+
+    const nextReview = Date.now() + (interval * 24 * 60 * 60 * 1000);
+
+    // Khóa các nút đánh giá trong lúc chờ mạng
+    document.querySelectorAll('.sm2-btn').forEach(b => b.disabled = true);
+
+    await updateWordSRS(word.id, level, nextReview, easeFactor, interval);
+
+    document.querySelectorAll('.sm2-btn').forEach(b => b.disabled = false);
+    nextQuestion(); // Tự động nhảy sang câu sau
+}
+
+export async function updateWordSRS(id, newLevel, newNextReview, newEaseFactor, newInterval) {
     try {
-        await updateWordSRSToBackend(id, newLevel, newNextReview);
+        await updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval);
         const wordInRam = AppState.cachedWords.find(w => w.id === id);
-        if (wordInRam) { wordInRam.level = newLevel; wordInRam.nextReview = newNextReview; }
+        if (wordInRam) {
+            wordInRam.level = newLevel;
+            wordInRam.nextReview = newNextReview;
+            wordInRam.easeFactor = newEaseFactor;
+            wordInRam.interval = newInterval;
+        }
         updateSRSStatus();
     } catch (error) { console.error("Lỗi đồng bộ SRS", error); }
 }

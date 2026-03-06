@@ -36,11 +36,16 @@ export async function importCSVToBackend(newItems) {
     }
 }
 
-export async function updateWordSRSToBackend(id, newLevel, newNextReview) {
+export async function updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval) {
     const response = await fetch(`${API_BASE_URL}/api/vocab/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ level: newLevel, nextReview: newNextReview })
+        body: JSON.stringify({
+            level: newLevel,
+            nextReview: newNextReview,
+            easeFactor: newEaseFactor,
+            interval: newInterval
+        })
     });
     if (!response.ok) throw new Error("Lỗi đồng bộ C#");
 }

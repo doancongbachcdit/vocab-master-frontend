@@ -2,10 +2,10 @@
 import { auth, db, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, collection, addDoc, getDocs, deleteDoc, doc, query, where, updateDoc, writeBatch } from './firebase-config.js';
 import { speakText, downloadSample, exportJSON } from './utils.js';
 // 2. IMPORT MODULE TỪ BÊN NGOÀI
-import { API_BASE_URL, SRS_INTERVALS, AppState, resetAppState } from './config.js';
+import { API_BASE_URL, AppState, resetAppState } from './config.js';
 import { gradeAnswer, getAIHint, generateAIQuestions } from './ai-services.js';
 import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBackend, updateWordSRSToBackend, deleteAllWordsFromFirebase } from './api.js';
-import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode } from './quiz.js';
+import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode, handleSM2Rating } from './quiz.js';
 import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
 
 
@@ -150,6 +150,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedOpt) {
                 handleAnswer(e.target, selectedOpt, qData.correct);
             }
+        }
+    });
+
+    // Lắng nghe sự kiện click Đánh giá SM-2
+    document.getElementById('sm2Actions').addEventListener('click', (e) => {
+        if (e.target.classList.contains('sm2-btn')) {
+            const quality = parseInt(e.target.getAttribute('data-q'), 10);
+            handleSM2Rating(quality);
         }
     });
 

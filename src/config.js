@@ -1,6 +1,5 @@
 // 1. Cấu hình hằng số (Constants)
 export const API_BASE_URL = "https://vocab-master-backend-5gma.onrender.com";
-export const SRS_INTERVALS = [0, 1, 3, 7, 14, 30, 90, 180];
 
 // 2. State App Toàn Cục (Giữ lại Data giữa các File)
 // Thay vì dùng biến let lung tung trong app.js, dùng Object trạng thái này:
