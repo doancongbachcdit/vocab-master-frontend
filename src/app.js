@@ -191,7 +191,28 @@ async function loadDataFromCloud() {
     showLoader("⏳ Đang tải dữ liệu từ máy chủ...");
     document.getElementById('reviewStatus').innerHTML = "⏳ Đang kết nối CSDL...";
     try {
-        AppState.cachedWords = await fetchAllWords(AppState.currentUser.uid);
+        AppState.cachedWords = []; // Reset kho từ cục bộ
+        let currPage = 1;
+        const limit = 50;
+        let keepFetching = true;
+
+        while (keepFetching) {
+            document.getElementById('reviewStatus').innerHTML = `⏳ Đang tải trang ${currPage} (kích thước ${limit})...`;
+
+            // Hỏi xin Backend 50 từ tiếp theo
+            const pageData = await fetchAllWords(AppState.currentUser.uid, currPage, limit);
+
+            // Gắn vào kho từ chính
+            AppState.cachedWords.push(...pageData);
+
+            // Nếu Backend trả về ít hơn 50 từ -> Đã hết kho! Dừng vòng lặp.
+            if (pageData.length < limit) {
+                keepFetching = false;
+            } else {
+                currPage++; // Tiến lên trang tiếp theo ở nhịp sau
+            }
+        }
+
         updateSRSStatus();
         if (document.getElementById('list').classList.contains('active')) renderList();
         if (document.getElementById('quiz').classList.contains('active')) resetQuiz();
