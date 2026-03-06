@@ -118,6 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Data Elements
     document.getElementById('btnAddWord').addEventListener('click', addWord);
+    document.getElementById('btnAutoFill').addEventListener('click', autoFillWord);
     // Ẩn/Hiện 3 ô Giải phẫu từ tùy theo ngôn ngữ (EN / CN)
     const inpLangEl = document.getElementById('inpLang');
     if (inpLangEl) {
@@ -255,6 +256,12 @@ async function addWord() {
         level: 0, nextReview: 0, userId: AppState.currentUser.uid
     };
 
+    const btnAddWord = document.getElementById('btnAddWord');
+    if (btnAddWord) {
+        btnAddWord.disabled = true;
+        btnAddWord.innerText = "⏳ Đang lưu...";
+    }
+
     try {
         document.getElementById('addStatus').innerText = "Đang lưu vào máy chủ...";
 
@@ -270,8 +277,89 @@ async function addWord() {
         document.getElementById('addStatus').innerText = "✅ Đã lưu vào SQL!";
         setTimeout(() => document.getElementById('addStatus').innerText = "", 2000);
         updateSRSStatus();
-    } catch (e) { alert("Lỗi: " + e.message); }
+    } catch (e) {
+        alert("Lỗi: " + e.message);
+    } finally {
+        if (btnAddWord) {
+            btnAddWord.disabled = false;
+            btnAddWord.innerText = "Lưu Lên Mây";
+        }
+    }
 
+}
+
+async function autoFillWord() {
+    const w = document.getElementById('inpWord').value.trim();
+    const lang = document.getElementById('inpLang').value;
+
+    if (!w) return alert("Vui lòng nhập Từ vựng trước khi nhấn Auto Fill!");
+    if (lang !== 'EN') return alert("Tính năng Auto Fill hiện chỉ hỗ trợ Tiếng Anh (EN).");
+
+    const btnAutoFill = document.getElementById('btnAutoFill');
+    if (btnAutoFill) {
+        btnAutoFill.disabled = true;
+        btnAutoFill.innerText = "⏳";
+    }
+
+    showLoader("⏳ Đang tra từ điển...");
+
+    try {
+        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`);
+        if (!response.ok) {
+            throw new Error((response.status === 404) ? "Không tìm thấy từ này trong từ điển!" : "Lỗi tra cứu từ điển API.");
+        }
+
+        const data = await response.json();
+        const entry = data[0]; // Lấy kết quả đầu tiên
+
+        // 1. LẤY PHÁT ÂM VÀ FILE MP3
+        let phoneticText = entry.phonetic || "";
+        let audioUrl = "";
+        if (entry.phonetics && entry.phonetics.length > 0) {
+            for (const p of entry.phonetics) {
+                if (p.text && !phoneticText) phoneticText = p.text;
+                if (p.audio && !audioUrl) audioUrl = p.audio;
+            }
+        }
+        if (phoneticText) document.getElementById('inpPhonetic').value = phoneticText;
+        if (audioUrl) {
+            new Audio(audioUrl).play().catch(e => console.log("Không thể tự động phát âm đệm."));
+        }
+
+        // 2. LẤY NGHĨA VÀ TỪ LOẠI
+        if (entry.meanings && entry.meanings.length > 0) {
+            const firstMeaning = entry.meanings[0];
+            const partOfSpeech = firstMeaning.partOfSpeech || "";
+            if (firstMeaning.definitions && firstMeaning.definitions.length > 0) {
+                const definition = firstMeaning.definitions[0].definition;
+                document.getElementById('inpMeaning').value = `(${partOfSpeech}) ${definition}`;
+
+                // 3. LẤY CÂU VÍ DỤ (Nếu Nghĩa đầu tiên không có, quét qua các nghĩa khác)
+                let example = firstMeaning.definitions[0].example || "";
+                if (!example) {
+                    for (const m of entry.meanings) {
+                        for (const d of m.definitions) {
+                            if (d.example && !example) example = d.example;
+                        }
+                    }
+                }
+
+                // Chỉ lấy câu ví dụ không chứa dấu phẩy để khỏi lỗi CSV
+                if (example) {
+                    document.getElementById('inpExample').value = example.replace(/,/g, ';');
+                }
+            }
+        }
+
+    } catch (e) {
+        alert("Lỗi Auto Fill: " + e.message);
+    } finally {
+        hideLoader();
+        if (btnAutoFill) {
+            btnAutoFill.disabled = false;
+            btnAutoFill.innerText = "✨ Auto";
+        }
+    }
 }
 
 export async function deleteWord(id) {
@@ -356,6 +444,12 @@ async function importCSV() {
             document.getElementById('csvFile').value = '';
             document.getElementById('reviewStatus').innerHTML = `⏳ Đang nạp ${newItems.length} từ...`;
 
+            const btnImportCSV = document.getElementById('btnImportCSV');
+            if (btnImportCSV) {
+                btnImportCSV.disabled = true;
+                btnImportCSV.innerText = "⏳ Đang nạp...";
+            }
+
             try {
                 showLoader(`⏳ Đang nạp ${newItems.length} từ...`);
                 await importCSVToBackend(newItems);
@@ -366,6 +460,10 @@ async function importCSV() {
                 document.getElementById('reviewStatus').innerHTML = "Lỗi nạp CSV";
             } finally {
                 hideLoader();
+                if (btnImportCSV) {
+                    btnImportCSV.disabled = false;
+                    btnImportCSV.innerText = "Nạp CSV";
+                }
             }
 
         } else {
