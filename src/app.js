@@ -23,14 +23,13 @@ document.addEventListener('DOMContentLoaded', () => {
         signOut(auth);
     });
 
-    // Navigation and Tabs (dùng closest để bấm vào chữ trong nút vẫn đúng tab)
+    // Navigation and Tabs
     const mainTabs = document.getElementById('mainTabs');
     if (mainTabs) {
         mainTabs.addEventListener('click', (e) => {
-            const btn = e.target.closest('.tab-btn');
-            if (btn) {
-                const tabId = btn.getAttribute('data-tab');
-                if (tabId) switchTab(tabId);
+            if (e.target.classList.contains('tab-btn')) {
+                const tabId = e.target.getAttribute('data-tab');
+                switchTab(tabId);
             }
         });
     }
@@ -187,10 +186,8 @@ window.switchTab = function (tabId) {
     document.querySelectorAll('.content').forEach(tab => {
         if (tab.id === tabId) {
             tab.classList.add('active');
-            tab.style.display = 'block';
         } else {
             tab.classList.remove('active');
-            tab.style.display = '';
         }
     });
 
@@ -204,12 +201,7 @@ window.switchTab = function (tabId) {
 
     if (tabId === 'list') renderList();
     if (tabId === 'quiz') resetQuiz();
-    if (tabId === 'dictation') {
-        const dictab = document.getElementById('dictation');
-        if (dictab) {
-            loadRandomDictation();
-        }
-    }
+    if (tabId === 'dictation') loadRandomDictation();
     if (tabId === 'reading') {
         const feedDiv = document.getElementById('devtoFeed');
         if (feedDiv && feedDiv.innerHTML.trim() === '') {
