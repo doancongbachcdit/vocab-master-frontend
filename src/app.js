@@ -202,7 +202,7 @@ window.switchTab = function (tabId) {
     if (tabId === 'list') renderList();
     if (tabId === 'quiz') resetQuiz();
     if (tabId === 'dictation') {
-        const dictab = document.getElementById('dictationTab');
+        const dictab = document.getElementById('dictation');
         if (dictab) {
             dictab.style.display = 'block'; // Hiển thị UI tĩnh
             loadRandomDictation(); // Đổ dữ liệu vào UI tĩnh
@@ -645,3 +645,6 @@ async function fetchDevToArticles(forceRefresh = true) {
         hideLoader();
     }
 }
+
+// Mở khóa hàm để index.html có thể gọi được
+window.loadRandomDictation = loadRandomDictation;
