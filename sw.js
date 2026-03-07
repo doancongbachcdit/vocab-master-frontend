@@ -1,5 +1,4 @@
-// Đổi tên cache để ép máy tải lại bản mới nhất
-const CACHE_NAME = 'vocab-pro-v9';
+const CACHE_NAME = 'vocab-pro-v10';
 
 // Danh sách các file cần lưu Offline (Bao gồm cả thư viện Google và Icon)
 const ASSETS = [
@@ -13,6 +12,7 @@ const ASSETS = [
   './src/config.js',
   './src/ai-services.js',
   './src/quiz.js',
+  './src/dictation.js',
   './src/ui.js',
   './manifest.json',
   // Thư viện Firebase bắt buộc phải lưu offline
