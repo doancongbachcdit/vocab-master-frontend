@@ -8,7 +8,7 @@ let currentUtterance = null;
 let isPlaying = false;
 
 export function loadRandomDictation() {
-    const dictationArea = document.getElementById('dictationTab');
+    const dictationArea = document.getElementById('dictation');
     if (!AppState.cachedWords || AppState.cachedWords.length === 0) {
         dictationArea.innerHTML = `<p style="text-align:center; padding: 20px;">Bạn chưa có từ vựng nào trong kho dữ liệu. Vui lòng sang tab Dữ Liệu để thêm!</p>`;
         return;
