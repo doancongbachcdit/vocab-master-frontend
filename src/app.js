@@ -7,10 +7,12 @@ import { gradeAnswer, getAIHint, generateAIQuestions } from './ai-services.js';
 import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBackend, updateWordSRSToBackend, deleteAllWordsFromFirebase } from './api.js';
 import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode, handleSM2Rating } from './quiz.js';
 import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
+import { loadRandomDictation, handleDictationKeydown } from './dictation.js';
 
 
 // 3. LOGIC DOM & SỰ KIỆN KHỞI TẠO
 document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('keydown', handleDictationKeydown);
     // Auth Event Listeners
     document.getElementById('btnLogin').addEventListener('click', () => {
         signInWithPopup(auth, new GoogleAuthProvider()).catch(err => alert("Lỗi: " + err.message));
@@ -198,6 +200,14 @@ window.switchTab = function (tabId) {
 
     if (tabId === 'list') renderList();
     if (tabId === 'quiz') resetQuiz();
+    if (tabId === 'dictation') {
+        const dictDiv = document.getElementById('dictationContent');
+        if (dictDiv && dictDiv.innerHTML.trim() === '') {
+            loadRandomDictation();
+        } else {
+            setTimeout(() => document.getElementById("userInputDict")?.focus(), 100);
+        }
+    }
     if (tabId === 'reading') {
         const feedDiv = document.getElementById('devtoFeed');
         if (feedDiv && feedDiv.innerHTML.trim() === '') {
