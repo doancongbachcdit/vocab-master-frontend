@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mainTabs.addEventListener('click', (e) => {
             if (e.target.classList.contains('tab-btn')) {
                 const tabId = e.target.getAttribute('data-tab');
-                switchTab(tabId);
+                window.switchTab(tabId);
             }
         });
     }
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-    document.getElementById('btnGoToData').addEventListener('click', () => switchTab('data'));
+    document.getElementById('btnGoToData').addEventListener('click', () => window.switchTab('data'));
 
     // Data Elements
     document.getElementById('btnAddWord').addEventListener('click', addWord);
