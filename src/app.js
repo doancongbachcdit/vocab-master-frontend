@@ -8,6 +8,7 @@ import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBack
 import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode, handleSM2Rating } from './quiz.js';
 import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
 import { loadRandomDictation, handleDictationKeydown } from './dictation.js';
+import './dictation.js'; // Kích hoạt chức năng Dictation ngay khi app load
 
 
 // 3. LOGIC DOM & SỰ KIỆN KHỞI TẠO
@@ -201,11 +202,10 @@ window.switchTab = function (tabId) {
     if (tabId === 'list') renderList();
     if (tabId === 'quiz') resetQuiz();
     if (tabId === 'dictation') {
-        const dictDiv = document.getElementById('dictationContent');
-        if (dictDiv && dictDiv.innerHTML.trim() === '') {
-            loadRandomDictation();
-        } else {
-            setTimeout(() => document.getElementById("userInputDict")?.focus(), 100);
+        const dictab = document.getElementById('dictationTab');
+        if (dictab) {
+            dictab.style.display = 'block'; // Hiển thị UI tĩnh
+            loadRandomDictation(); // Đổ dữ liệu vào UI tĩnh
         }
     }
     if (tabId === 'reading') {

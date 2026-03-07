@@ -234,7 +234,20 @@
 
     <!-- TAB: CHÉP CHÍNH TẢ (DICTATION) -->
     <div id="dictation" class="content">
-        <div id="dictationContent"></div>
+        <div id="dictationTab" style="display: none;">
+            <h2>🎧 Luyện chép chính tả (Daily Dictation)</h2>
+
+            <div class="dictation-container">
+                <button id="btnPlayDictation" class="btn btn-primary">🔊 Nghe & Đọc</button>
+
+                <textarea id="inpDictation" placeholder="Nhấn nút Nghe và gõ lại chính xác câu bạn nghe được..."
+                    rows="4" style="width: 100%; margin-top: 10px;"></textarea>
+
+                <button id="btnCheckDictation" class="btn btn-success" style="margin-top: 10px;">Chấm điểm</button>
+
+                <div id="dictationResult" style="margin-top: 15px; font-size: 18px; line-height: 1.5;"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Main App Logic -->
