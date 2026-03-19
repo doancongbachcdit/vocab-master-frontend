@@ -286,13 +286,6 @@ async function addWord() {
     const suf = document.getElementById('inpSuffix')?.value.trim() || "";
     const ex = document.getElementById('inpExample')?.value.trim() || "";
 
-    // 🛑 KIỂM TRA CHẶN DẤU PHẨY (Bảo vệ dữ liệu CSV)
-    if (ex.includes(',')) {
-        return alert("⚠️ Lỗi: Vui lòng không dùng dấu phẩy (,) trong câu ví dụ. Thay vào đó hãy dùng dấu chấm (.) hoặc dấu chấm phẩy (;)");
-    }
-    if (w.includes(',') || m.includes(',')) {
-        return alert("⚠️ Lỗi: Vui lòng không dùng dấu phẩy (,) trong Từ vựng và Nghĩa.");
-    }
 
     if (!w || !m) return alert("Thiếu từ hoặc nghĩa!");
 
@@ -336,79 +329,88 @@ async function addWord() {
 
 }
 
+
+
 async function autoFillWord() {
-    const w = document.getElementById('inpWord').value.trim();
-    const lang = document.getElementById('inpLang').value;
-
-    if (!w) return alert("Vui lòng nhập Từ vựng trước khi nhấn Auto Fill!");
-    if (lang !== 'EN') return alert("Tính năng Auto Fill hiện chỉ hỗ trợ Tiếng Anh (EN).");
-
+    const inpWord = document.getElementById('inpWord');
+    const inpLang = document.getElementById('inpLang');
     const btnAutoFill = document.getElementById('btnAutoFill');
-    if (btnAutoFill) {
-        btnAutoFill.disabled = true;
-        btnAutoFill.innerText = "⏳";
+
+    const word = inpWord.value.trim();
+    const lang = inpLang.value; // 'EN' hoặc 'CN'
+
+    if (!word) {
+        alert("Vui lòng nhập từ vựng trước khi nhấn Auto Fill!");
+        return;
     }
 
-    showLoader("⏳ Đang tra từ điển...");
+    // Đổi trạng thái nút để báo hiệu đang tải
+    const originalBtnText = btnAutoFill.innerHTML;
+    btnAutoFill.disabled = true;
+    btnAutoFill.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Đang tìm...`;
 
     try {
-        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(w)}`);
-        if (!response.ok) {
-            throw new Error((response.status === 404) ? "Không tìm thấy từ này trong từ điển!" : "Lỗi tra cứu từ điển API.");
+        let systemPrompt = "";
+
+        if (lang === 'EN') {
+            // TIẾNG ANH: Yêu cầu AI trả nghĩa tiếng Việt và ví dụ tiếng Anh
+            systemPrompt = `Bạn là từ điển Anh-Việt. Tra từ: "${word}". 
+            Trả về duy nhất 1 chuỗi JSON (không markdown, không giải thích):
+            {
+                "pronunciation": "phiên âm IPA của từ",
+                "meaning": "nghĩa ngắn gọn bằng tiếng Việt",
+                "example": "1 câu ví dụ tiếng Anh chứa từ đó"
+            }`;
+        } else if (lang === 'CN') {
+            // TIẾNG TRUNG: Yêu cầu AI trả ví dụ bằng chữ Hán
+            // Ghi chú: Nếu bạn muốn inpExample CHỈ CHỨA chữ Hán của từ đó, hãy đổi câu lệnh prompt ở phần 'example'
+            systemPrompt = `Bạn là từ điển Trung-Việt. Tra từ: "${word}". 
+            Trả về duy nhất 1 chuỗi JSON (không markdown, không giải thích):
+            {
+                "pronunciation": "phiên âm Pinyin của từ",
+                "meaning": "nghĩa ngắn gọn bằng tiếng Việt",
+                "example": "1 câu ví dụ thuần Chữ Hán (không kèm pinyin) chứa từ đó" 
+            }`;
         }
 
-        const data = await response.json();
-        const entry = data[0]; // Lấy kết quả đầu tiên
+        // Gọi chung 1 API Backend C# cho cả 2 ngôn ngữ
+        const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ prompt: systemPrompt })
+        });
 
-        // 1. LẤY PHÁT ÂM VÀ FILE MP3
-        let phoneticText = entry.phonetic || "";
-        let audioUrl = "";
-        if (entry.phonetics && entry.phonetics.length > 0) {
-            for (const p of entry.phonetics) {
-                if (p.text && !phoneticText) phoneticText = p.text;
-                if (p.audio && !audioUrl) audioUrl = p.audio;
-            }
+        if (response.ok) {
+            const aiResult = await response.json();
+
+            // Xử lý dữ liệu trả về (tùy thuộc vào C# trả về trường result hay answer)
+            let rawText = aiResult.answer || aiResult.result || aiResult.message || aiResult;
+            if (typeof rawText !== 'string') rawText = JSON.stringify(rawText);
+
+            // Dọn dẹp markdown
+            let cleanJsonStr = (aiResult.result ?? '').replace(/```json/g, '').replace(/```/g, '').trim();
+            const wordData = JSON.parse(cleanJsonStr);
+
+            // Điền dữ liệu vào form
+            document.getElementById('inpPhonetic').value = wordData.pronunciation || "";
+            document.getElementById('inpMeaning').value = wordData.meaning || "";
+            document.getElementById('inpExample').value = wordData.example || "";
+
+        } else {
+            alert("AI Backend phản hồi lỗi hoặc đang quá tải!");
         }
-        if (phoneticText) document.getElementById('inpPhonetic').value = phoneticText;
-        if (audioUrl) {
-            new Audio(audioUrl).play().catch(e => console.log("Không thể tự động phát âm đệm."));
-        }
-
-        // 2. LẤY NGHĨA VÀ TỪ LOẠI
-        if (entry.meanings && entry.meanings.length > 0) {
-            const firstMeaning = entry.meanings[0];
-            const partOfSpeech = firstMeaning.partOfSpeech || "";
-            if (firstMeaning.definitions && firstMeaning.definitions.length > 0) {
-                const definition = firstMeaning.definitions[0].definition;
-                document.getElementById('inpMeaning').value = `(${partOfSpeech}) ${definition}`;
-
-                // 3. LẤY CÂU VÍ DỤ (Nếu Nghĩa đầu tiên không có, quét qua các nghĩa khác)
-                let example = firstMeaning.definitions[0].example || "";
-                if (!example) {
-                    for (const m of entry.meanings) {
-                        for (const d of m.definitions) {
-                            if (d.example && !example) example = d.example;
-                        }
-                    }
-                }
-
-                // Chỉ lấy câu ví dụ không chứa dấu phẩy để khỏi lỗi CSV
-                if (example) {
-                    document.getElementById('inpExample').value = example.replace(/,/g, ';');
-                }
-            }
-        }
-
-    } catch (e) {
-        alert("Lỗi Auto Fill: " + e.message);
+    } catch (error) {
+        console.error("Lỗi Auto Fill:", error);
+        alert("Đã xảy ra lỗi kết nối khi lấy dữ liệu từ AI!");
     } finally {
-        hideLoader();
-        if (btnAutoFill) {
-            btnAutoFill.disabled = false;
-            btnAutoFill.innerText = "✨ Auto";
-        }
+        // Trả lại trạng thái ban đầu cho nút
+        btnAutoFill.disabled = false;
+        btnAutoFill.innerHTML = originalBtnText;
     }
 }
+
 
 export async function deleteWord(id) {
     if (confirm("Xóa vĩnh viễn khỏi hệ thống?")) {

@@ -64,24 +64,59 @@ export async function getAIHint() {
     let prompt = "";
 
     if (lang === 'EN') {
-        prompt = `Đóng vai một chuyên gia ngôn ngữ học. Tôi đang cần nhớ từ vựng tiếng Anh: '${word}' (Nghĩa là: ${meaning}).
-Hãy cho tôi MỘT gợi ý ngắn gọn bằng tiếng Việt (tối đa 3 câu) để tôi tự đoán ra từ này. BẮT BUỘC tuân thủ:
-KHÔNG được nhắc trực tiếp đến từ '${word}' hoặc nghĩa tiếng Việt '${meaning}' trong câu trả lời.
-Hãy gợi ý dựa trên giải phẫu từ (Tiền tố/Hậu tố/Gốc từ tiếng Latinh) nếu có.
-Hoặc đưa ra một từ đồng nghĩa/trái nghĩa phổ biến.
-Giọng điệu hài hước, kích thích sự tò mò, dùng icon cho sinh động.`;
+        prompt = `Đóng vai chuyên gia ngôn ngữ học hài hước. Nhiệm vụ: Tạo MỘT gợi ý ngắn gọn (tối đa 3 câu tiếng Việt) để giúp học viên đoán được từ vựng tiếng Anh đang học.
+
+[Thông tin từ vựng]
+- Từ mục tiêu: '${word}'
+- Nghĩa tiếng Việt: '${meaning}'
+
+[Yêu cầu gợi ý]
+- Phân tích "giải phẫu từ" (Tiền tố/Hậu tố/Gốc từ Latinh/Hy Lạp) HOẶC đưa ra một từ đồng nghĩa/trái nghĩa quen thuộc.
+- Kích thích sự tò mò, dùng icon sinh động.
+
+[Ràng buộc TUYỆT ĐỐI]
+1. KHÔNG xuất hiện từ '${word}' trong câu trả lời.
+2. KHÔNG xuất hiện nghĩa '${meaning}' trong câu trả lời.
+3. Chỉ in ra phần gợi ý, không giải thích dài dòng.`;
+
     } else if (lang === 'CN') {
-        prompt = `Đóng vai một thầy giáo dạy tiếng Trung cổ điển. Tôi đang cần nhớ từ vựng tiếng Trung: '${word}' (Nghĩa là: ${meaning}, Phiên âm: ${pinyin}).
-Hãy cho tôi MỘT gợi ý ngắn gọn bằng tiếng Việt (tối đa 3 câu) để tôi nhớ cách viết và ý nghĩa của từ này. BẮT BUỘC tuân thủ:
-KHÔNG dịch thẳng nghĩa '${meaning}' để tôi tự đoán.
-Hãy phân tích CHIẾT TỰ (chữ này được ghép từ những bộ thủ nào, ý nghĩa của từng bộ thủ là gì).
-Vẽ ra một câu chuyện hình ảnh logic hoặc hài hước liên kết các bộ thủ đó lại với nhau để hình thành nên nghĩa của từ.
-Nhắc nhẹ về cách phát âm (${pinyin}) nếu nó là chữ Hình Thanh. Dùng icon cho sinh động.`;
+        prompt = `Đóng vai một chuyên gia Hán ngữ. Nhiệm vụ của bạn là "giải phẫu" từ vựng '${word}' (Phiên âm: ${pinyin}, Nghĩa: ${meaning}) để giúp học viên ghi nhớ sâu sắc mặt chữ và cách dùng.
+
+[Cấu trúc ĐẦU RA BẮT BUỘC]
+Bạn phải trình bày đúng 3 phần sau, dùng icon sinh động cho từng phần:
+
+1. 🔍 Phân tích các bộ thủ: 
+- Tách chữ '${word}' thành các bộ thủ/chữ nhỏ cấu thành (từ trái sang phải, trên xuống dưới, hoặc ngoài vào trong). 
+- Giải thích ngắn gọn ý nghĩa, hình dáng của từng bộ.
+
+2. 💡 Mẹo nhớ (Tưởng tượng câu chuyện): 
+- Sáng tạo 1-2 câu chuyện logic hoặc hài hước liên kết các bộ thủ ở phần 1 lại với nhau để hình thành nên ý nghĩa '${meaning}'. 
+- Có thể dùng thêm âm Hán Việt để tạo câu chuyện thứ 2 nếu phù hợp.
+
+3. 🌟 Ứng dụng: 
+- Cung cấp 2-3 cụm từ/câu ví dụ siêu ngắn gọn, thông dụng được ghép từ chữ '${word}'. 
+- Bắt buộc có pinyin và nghĩa tiếng Việt đi kèm cho các ví dụ này.
+
+[Ràng buộc TUYỆT ĐỐI]
+1. KHÔNG viết câu chào hỏi dạo đầu hay kết luận dư thừa (Ví dụ: "Chào bạn, sau đây là...", "Hy vọng điều này giúp ích...").
+2. Bắt đầu ngay lập tức bằng dòng "1. 🔍 Phân tích các bộ thủ".
+3. Trình bày rành mạch, ngắt dòng rõ ràng, tối ưu để hiển thị đẹp mắt trên giao diện website học tập.`;
     } else {
-        prompt = `Từ vựng hiện tại là "${word}" (${langName}, nghĩa: ${meaning}). Bách đang học và đã quên mất nghĩa của từ này.
-Hãy giúp Bách nhớ lại bằng một câu gợi ý tình huống bằng ${langName} siêu dễ hiểu (kiểu điền vào chỗ trống).
-QUAN TRỌNG: TUYỆT ĐỐI KHÔNG được dịch trực tiếp nghĩa của từ "${word}" ra tiếng Việt để Bách tự đoán.
-Trình bày siêu ngắn gọn (1-2 dòng), dùng icon cho sinh động.`;
+        prompt = `Nhiệm vụ: Tạo một câu ví dụ tình huống siêu dễ hiểu (kiểu điền vào chỗ trống) bằng ngôn ngữ ${langName} để giúp học viên tên Bách nhớ lại từ vựng đã quên.
+
+[Thông tin từ vựng]
+- Từ mục tiêu: '${word}'
+- Nghĩa tiếng Việt: '${meaning}'
+
+[Yêu cầu gợi ý]
+- Viết 1-2 câu tình huống mô tả ngữ cảnh sử dụng của từ này.
+- Dùng dấu "___" để thay thế cho từ mục tiêu trong câu ví dụ.
+- Dùng icon sinh động phù hợp với ngữ cảnh.
+
+[Ràng buộc TUYỆT ĐỐI]
+1. KHÔNG xuất hiện từ '${word}' trong câu trả lời.
+2. KHÔNG dịch trực tiếp nghĩa '${meaning}' ra tiếng Việt. 
+3. Chỉ in ra câu ví dụ có chỗ trống.`;
     }
 
     try {
