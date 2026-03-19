@@ -43,6 +43,7 @@ export function gradeAnswer(question, answer, feedbackDiv, btn) {
 }
 
 // --- 2. TÍNH NĂNG XIN AI GỢI Ý (HINT) ---
+// --- 2. TÍNH NĂNG XIN AI GỢI Ý (HINT) ---
 export async function getAIHint() {
     // Trỏ vào AppState để lấy currentQuizItem thay vì biến toàn cục
     if (!AppState.currentQuizItem) return;
@@ -64,44 +65,55 @@ export async function getAIHint() {
     let prompt = "";
 
     if (lang === 'EN') {
-        prompt = `Đóng vai chuyên gia ngôn ngữ học hài hước. Nhiệm vụ: Tạo MỘT gợi ý ngắn gọn (tối đa 3 câu tiếng Việt) để giúp học viên đoán được từ vựng tiếng Anh đang học.
+        // PROMPT TIẾNG ANH (ÉP GIẢI PHẪU TỪ & ĐIỀN VÀO CHỖ TRỐNG)
+        prompt = `Đóng vai chuyên gia ngôn ngữ học hài hước. Nhiệm vụ: Tạo gợi ý để giúp học viên ĐOÁN được từ vựng tiếng Anh đang học.
 
 [Thông tin từ vựng]
 - Từ mục tiêu: '${word}'
 - Nghĩa tiếng Việt: '${meaning}'
 
-[Yêu cầu gợi ý]
-- Phân tích "giải phẫu từ" (Tiền tố/Hậu tố/Gốc từ Latinh/Hy Lạp) HOẶC đưa ra một từ đồng nghĩa/trái nghĩa quen thuộc.
-- Kích thích sự tò mò, dùng icon sinh động.
+[Cấu trúc ĐẦU RA BẮT BUỘC]
+Bạn PHẢI trình bày đúng 2 phần sau, sử dụng định dạng Markdown (in đậm từ khóa) và danh sách (bullet points):
+
+1. 🔍 **Giải phẫu từ / Liên tưởng:**
+- NẾU từ có Tiền tố/Hậu tố/Gốc từ (Latinh/Hy Lạp): Hãy mổ xẻ và giải thích ý nghĩa các thành phần đó (VD: "Tiền tố 'un-' nghĩa là không, gốc từ 'believ' là tin...").
+- NẾU từ đơn giản không có gốc từ: Đưa ra từ đồng nghĩa/trái nghĩa quen thuộc hoặc nguồn gốc thú vị của từ.
+- TUYỆT ĐỐI không được nhắc đến từ '${word}'.
+
+2. 💡 **Tình huống gợi nhớ:**
+- Tạo 1 câu ví dụ tiếng Anh thực tế, nhưng thay thế từ mục tiêu bằng "___".
+- Cung cấp bản dịch tiếng Việt của câu đó (cũng thay bằng "___"). Dùng icon sinh động.
 
 [Ràng buộc TUYỆT ĐỐI]
-1. KHÔNG xuất hiện từ '${word}' trong câu trả lời.
-2. KHÔNG xuất hiện nghĩa '${meaning}' trong câu trả lời.
-3. Chỉ in ra phần gợi ý, không giải thích dài dòng.`;
+1. TUYỆT ĐỐI KHÔNG xuất hiện từ '${word}' trong câu trả lời.
+2. TUYỆT ĐỐI KHÔNG xuất hiện nghĩa '${meaning}' trong câu trả lời.
+3. KHÔNG chào hỏi dạo đầu hay kết luận. Bắt đầu ngay bằng "1. 🔍 **Giải phẫu từ / Liên tưởng:**".`;
 
     } else if (lang === 'CN') {
-        // PROMPT TIẾNG TRUNG ĐÃ ĐƯỢC NÂNG CẤP
-        prompt = `Đóng vai một chuyên gia Hán ngữ. Nhiệm vụ của bạn là "giải phẫu" từ vựng '${word}' (Phiên âm: ${pinyin}, Nghĩa: ${meaning}) để giúp học viên ghi nhớ sâu sắc mặt chữ.
+        // PROMPT TIẾNG TRUNG (ÉP CHIẾT TỰ ĐẾN TẬN CÙNG)
+        prompt = `Đóng vai một chuyên gia Hán ngữ và bậc thầy về "Chiết tự" (Thuyết văn giải tự). Nhiệm vụ của bạn là "giải phẫu" từ vựng '${word}' (Phiên âm: ${pinyin}, Nghĩa: ${meaning}) để giúp học viên ghi nhớ sâu sắc mặt chữ.
 
 [Cấu trúc ĐẦU RA BẮT BUỘC]
-Bạn PHẢI trình bày đúng 3 phần sau, sử dụng định dạng Markdown (in đậm từ khóa) và danh sách (bullet points) giống hệt cấu trúc này:
+Bạn PHẢI trình bày đúng 3 phần sau, sử dụng định dạng Markdown (in đậm từ khóa) và danh sách (bullet points):
 
-1. 🔍 **Phân tích các bộ thủ:**
-- Chỉ ra cấu tạo chữ '${word}' (từ trái sang phải, trên xuống, hoặc trong ngoài).
-- Phân tích chi tiết: **Tên bộ thủ/chữ**, hình dáng, và ý nghĩa gốc của phần đó.
+1. 🔍 **Phân tích các bộ thủ (Chiết tự chi tiết):**
+- NẾU từ '${word}' là từ ghép (từ 2 chữ Hán trở lên), BẮT BUỘC phải mổ xẻ TỪNG CHỮ MỘT. 
+- TUYỆT ĐỐI KHÔNG được trả lời lười biếng kiểu "đây là chữ đơn lẻ không có bộ thủ". Phải phân tích đến tận cùng các bộ thủ/nét cơ bản cấu thành nên nó.
+- Giải thích rõ: **Tên bộ thủ/chữ**, hình dáng, và ý nghĩa gốc. (Ví dụ: chữ 学 gồm ⺍, 冖 và 子; chữ 校 gồm 木 và 交).
 
 2. 💡 **Mẹo nhớ (Tưởng tượng câu chuyện):**
-- Sáng tạo một câu chuyện logic hoặc hài hước liên kết chặt chẽ ý nghĩa các bộ thủ vừa phân tích để giải thích tại sao nó lại mang ý nghĩa là '${meaning}'. In đậm các từ khóa liên quan đến bộ thủ trong câu chuyện.
-- Nếu phù hợp, hãy cung cấp thêm 1 mẹo nhớ dựa trên âm Hán Việt.
+- Sáng tạo một câu chuyện siêu hình tượng, sinh động (có tính vật lý, dễ hình dung) liên kết chặt chẽ các bộ thủ nhỏ ở phần 1 để giải thích ý nghĩa '${meaning}'. 
+- In đậm các từ khóa tương ứng với bộ thủ trong câu chuyện (VD: vã **mồ hôi**, dưới **mái nhà**, cây **gỗ**...).
+- Nếu có thể, thêm 1 mẹo nhớ theo âm Hán Việt.
 
 3. 🌟 **Ứng dụng:**
-- Liệt kê 2-3 từ ghép hoặc cụm từ cực kỳ thông dụng chứa chữ '${word}'.
-- Bắt buộc theo format: **Chữ Hán (pinyin):** Nghĩa tiếng Việt.
+- Liệt kê 2-3 từ ghép thông dụng chứa chữ '${word}'.
+- Format bắt buộc: **Chữ Hán (pinyin):** Nghĩa tiếng Việt.
 
 [Ràng buộc TUYỆT ĐỐI]
-1. Tuyệt đối KHÔNG viết câu chào hỏi dạo đầu hay câu kết luận.
-2. Bắt đầu ngay lập tức bằng dòng: "1. 🔍 **Phân tích các bộ thủ:**".
-3. Trình bày rành mạch, có khoảng trắng giữa các phần để hiển thị đẹp mắt trên giao diện.`;
+1. KHÔNG viết câu chào hỏi dạo đầu hay câu kết luận dư thừa.
+2. Bắt đầu ngay lập tức bằng dòng: "1. 🔍 **Phân tích các bộ thủ (Chiết tự chi tiết):**".
+3. Trình bày rành mạch, ngắt dòng chuẩn xác.`;
     } else {
         prompt = `Nhiệm vụ: Tạo một câu ví dụ tình huống siêu dễ hiểu (kiểu điền vào chỗ trống) bằng ngôn ngữ ${langName} để giúp học viên tên Bách nhớ lại từ vựng đã quên.
 
@@ -130,8 +142,13 @@ Bạn PHẢI trình bày đúng 3 phần sau, sử dụng định dạng Markdow
         const data = await response.json();
         if (!response.ok) throw new Error(data.message || "Lỗi API");
 
-        const hintText = data.result;
-        hintArea.innerHTML = `💡 <b>Gợi ý cho Bách:</b><br>${hintText.replace(/\n/g, '<br>')}`;
+        let hintText = data.result;
+
+        // CỰC KỲ QUAN TRỌNG: Render Markdown thành HTML để hiển thị đẹp
+        hintText = hintText.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); // Biến **chữ in đậm** thành <b>chữ in đậm</b>
+        hintText = hintText.replace(/\n/g, '<br>'); // Chuyển dấu xuống dòng thành thẻ <br>
+
+        hintArea.innerHTML = `💡 <b>Gợi ý cho Bách:</b><br><br>${hintText}`;
     } catch (err) {
         hintArea.innerHTML = `❌ Lỗi lấy gợi ý: ${err.message}`;
     } finally {
