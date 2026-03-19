@@ -80,27 +80,28 @@ export async function getAIHint() {
 3. Chỉ in ra phần gợi ý, không giải thích dài dòng.`;
 
     } else if (lang === 'CN') {
-        prompt = `Đóng vai một chuyên gia Hán ngữ. Nhiệm vụ của bạn là "giải phẫu" từ vựng '${word}' (Phiên âm: ${pinyin}, Nghĩa: ${meaning}) để giúp học viên ghi nhớ sâu sắc mặt chữ và cách dùng.
+        // PROMPT TIẾNG TRUNG ĐÃ ĐƯỢC NÂNG CẤP
+        prompt = `Đóng vai một chuyên gia Hán ngữ. Nhiệm vụ của bạn là "giải phẫu" từ vựng '${word}' (Phiên âm: ${pinyin}, Nghĩa: ${meaning}) để giúp học viên ghi nhớ sâu sắc mặt chữ.
 
 [Cấu trúc ĐẦU RA BẮT BUỘC]
-Bạn phải trình bày đúng 3 phần sau, dùng icon sinh động cho từng phần:
+Bạn PHẢI trình bày đúng 3 phần sau, sử dụng định dạng Markdown (in đậm từ khóa) và danh sách (bullet points) giống hệt cấu trúc này:
 
-1. 🔍 Phân tích các bộ thủ: 
-- Tách chữ '${word}' thành các bộ thủ/chữ nhỏ cấu thành (từ trái sang phải, trên xuống dưới, hoặc ngoài vào trong). 
-- Giải thích ngắn gọn ý nghĩa, hình dáng của từng bộ.
+1. 🔍 **Phân tích các bộ thủ:**
+- Chỉ ra cấu tạo chữ '${word}' (từ trái sang phải, trên xuống, hoặc trong ngoài).
+- Phân tích chi tiết: **Tên bộ thủ/chữ**, hình dáng, và ý nghĩa gốc của phần đó.
 
-2. 💡 Mẹo nhớ (Tưởng tượng câu chuyện): 
-- Sáng tạo 1-2 câu chuyện logic hoặc hài hước liên kết các bộ thủ ở phần 1 lại với nhau để hình thành nên ý nghĩa '${meaning}'. 
-- Có thể dùng thêm âm Hán Việt để tạo câu chuyện thứ 2 nếu phù hợp.
+2. 💡 **Mẹo nhớ (Tưởng tượng câu chuyện):**
+- Sáng tạo một câu chuyện logic hoặc hài hước liên kết chặt chẽ ý nghĩa các bộ thủ vừa phân tích để giải thích tại sao nó lại mang ý nghĩa là '${meaning}'. In đậm các từ khóa liên quan đến bộ thủ trong câu chuyện.
+- Nếu phù hợp, hãy cung cấp thêm 1 mẹo nhớ dựa trên âm Hán Việt.
 
-3. 🌟 Ứng dụng: 
-- Cung cấp 2-3 cụm từ/câu ví dụ siêu ngắn gọn, thông dụng được ghép từ chữ '${word}'. 
-- Bắt buộc có pinyin và nghĩa tiếng Việt đi kèm cho các ví dụ này.
+3. 🌟 **Ứng dụng:**
+- Liệt kê 2-3 từ ghép hoặc cụm từ cực kỳ thông dụng chứa chữ '${word}'.
+- Bắt buộc theo format: **Chữ Hán (pinyin):** Nghĩa tiếng Việt.
 
 [Ràng buộc TUYỆT ĐỐI]
-1. KHÔNG viết câu chào hỏi dạo đầu hay kết luận dư thừa (Ví dụ: "Chào bạn, sau đây là...", "Hy vọng điều này giúp ích...").
-2. Bắt đầu ngay lập tức bằng dòng "1. 🔍 Phân tích các bộ thủ".
-3. Trình bày rành mạch, ngắt dòng rõ ràng, tối ưu để hiển thị đẹp mắt trên giao diện website học tập.`;
+1. Tuyệt đối KHÔNG viết câu chào hỏi dạo đầu hay câu kết luận.
+2. Bắt đầu ngay lập tức bằng dòng: "1. 🔍 **Phân tích các bộ thủ:**".
+3. Trình bày rành mạch, có khoảng trắng giữa các phần để hiển thị đẹp mắt trên giao diện.`;
     } else {
         prompt = `Nhiệm vụ: Tạo một câu ví dụ tình huống siêu dễ hiểu (kiểu điền vào chỗ trống) bằng ngôn ngữ ${langName} để giúp học viên tên Bách nhớ lại từ vựng đã quên.
 
