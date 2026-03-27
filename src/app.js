@@ -9,6 +9,7 @@ import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, h
 import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
 import { loadRandomDictation, handleDictationKeydown } from './dictation.js';
 import './dictation.js'; // Kích hoạt chức năng Dictation ngay khi app load
+import './dictionaryPopup.js'; // Kích hoạt chức năng tra từ ngay khi app load
 
 
 // 3. LOGIC DOM & SỰ KIỆN KHỞI TẠO

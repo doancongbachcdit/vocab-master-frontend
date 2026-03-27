@@ -38,3 +38,11 @@
 
         .vocab-item { display: flex; justify-content: space-between; padding: 14px; border-bottom: 1px solid #f1f5f9; align-items: center; }
         .level-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+        /* Dictation Popup */
+        #dict-popup { position: absolute; z-index: 1000; background: #ffffff; border: 1px solid #ccc; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); border-radius: 8px; padding: 12px; max-width: 250px; font-size: 14px; display: none; pointer-events: none; transition: opacity 0.2s ease-in-out; }
+        #dict-popup.active { display: block; pointer-events: auto; }
+        #dict-word { font-weight: bold; font-size: 16px; color: var(--primary); margin-bottom: 5px; text-transform: capitalize; }
+        #dict-phonetic { color: #64748b; font-style: italic; margin-bottom: 8px; font-size: 13px; }
+        #dict-meaning { color: #333; }
+        .loader { display: inline-block; font-size: 13px; color: #666; }

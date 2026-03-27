@@ -1,6 +1,6 @@
 // 1. Cấu hình hằng số (Constants)
-export const API_BASE_URL = "https://vocab-master-backend-5gma.onrender.com";
-// export const API_BASE_URL = "https://localhost:7203";
+// export const API_BASE_URL = "https://vocab-master-backend-5gma.onrender.com";
+export const API_BASE_URL = "https://localhost:7203";
 
 // 2. State App Toàn Cục (Giữ lại Data giữa các File)
 // Thay vì dùng biến let lung tung trong app.js, dùng Object trạng thái này:
