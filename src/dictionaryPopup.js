@@ -27,8 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const selection = window.getSelection();
         const selectedText = selection.toString().trim();
 
-        // Kiểm tra xem có text được bôi đen không và nó có phải là 1 từ duy nhất không
-        if (selectedText.length > 0 && selectedText.indexOf(' ') === -1) {
+        // Cho phép dịch từ đơn hoặc nguyên cả một đoạn văn (giới hạn dưới 300 ký tự để pop-up không bị tràn màn hình)
+        if (selectedText.length > 0 && selectedText.length <= 300) {
 
             // Lấy vị trí của đoạn text được bôi đen
             const range = selection.getRangeAt(0);
@@ -57,8 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchDefinition(word) {
-        // Kiểm tra xem từ có phải là ký tự tiếng Anh không (chỉ chứa chữ cái a-z, khoảng trắng, gạch nối, nháy đơn)
-        const isEnglishWord = /^[a-zA-Z\s\-']+$/.test(word);
+        // Chỉ gọi API Từ điển tiếng Anh nếu đó là MỘT TỪ ĐƠN thuần tiếng Anh (không chứa khoảng trắng, số...)
+        const isEnglishWord = /^[a-zA-Z\-']+$/.test(word);
 
         if (!isEnglishWord) {
             // Đây không phải là tiếng Anh (ví dụ tiếng Trung, số...), bỏ qua API Anh-Anh luôn để tránh bị web báo lỗi Đỏ (404)
