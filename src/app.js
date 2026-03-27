@@ -241,34 +241,55 @@ async function loadDataFromCloud() {
     document.getElementById('reviewStatus').innerHTML = "⏳ Đang kết nối CSDL...";
     try {
         AppState.cachedWords = []; // Reset kho từ cục bộ
-        let currPage = 1;
         const limit = 500;
-        let keepFetching = true;
 
-        while (keepFetching) {
-            document.getElementById('reviewStatus').innerHTML = `⏳ Đang tải trang ${currPage} (kích thước ${limit})...`;
-
-            // Hỏi xin Backend 50 từ tiếp theo
-            const pageData = await fetchAllWords(AppState.currentUser.uid, currPage, limit);
-
-            // Gắn vào kho từ chính
-            AppState.cachedWords.push(...pageData);
-
-            // Nếu Backend trả về ít hơn 50 từ -> Đã hết kho! Dừng vòng lặp.
-            if (pageData.length < limit) {
-                keepFetching = false;
-            } else {
-                currPage++; // Tiến lên trang tiếp theo ở nhịp sau
-            }
-        }
-
+        // 1. TẢI NGAY TRANG ĐẦU TIÊN VÀ HIỂN THỊ LUÔN (CHO TRẢI NGHIỆM MƯỢT TRONG TÍCH TẮC)
+        document.getElementById('reviewStatus').innerHTML = `⏳ Đang tải 500 từ đầu tiên...`;
+        const firstPageData = await fetchAllWords(AppState.currentUser.uid, 1, limit);
+        AppState.cachedWords.push(...firstPageData);
+        
+        // Cập nhật giao diện LUÔN CHO NÓNG!
         updateSRSStatus();
         if (document.getElementById('list').classList.contains('active')) renderList();
         if (document.getElementById('quiz').classList.contains('active')) resetQuiz();
+        hideLoader(); // Tắt loader ngay sau khi xong trang 1 để không gián đoạn
+        
+        // 2. NẾU CÒN DỮ LIỆU THÌ TẢI NGẦM TRONG BACKGROUND (BACKGROUND FETCHING MƯỢT MÀ)
+        if (firstPageData.length === limit) {
+             // Không xài await để nó tự chạy độc lập khỏi luồng chính
+             loadRemainingDataInBackground(2, limit);
+        } else {
+             document.getElementById('reviewStatus').innerHTML = `✅ Đã tải xong dữ liệu!`;
+        }
     } catch (error) {
         alert("Lỗi tải dữ liệu: " + error.message);
-    } finally {
         hideLoader();
+    }
+}
+
+// Hàm phụ tải ngầm để trang web không bị treo (Background Fetching)
+async function loadRemainingDataInBackground(startPage, limit) {
+    let currPage = startPage;
+    let keepFetching = true;
+    try {
+        while (keepFetching) {
+            document.getElementById('reviewStatus').innerHTML = `🔄 Đang tải ngầm trang ${currPage}...`;
+            const pageData = await fetchAllWords(AppState.currentUser.uid, currPage, limit);
+            AppState.cachedWords.push(...pageData);
+            
+            if (pageData.length < limit) {
+                keepFetching = false;
+                document.getElementById('reviewStatus').innerHTML = `✅ Đã đồng bộ toàn bộ từ vựng!`;
+            } else {
+                currPage++;
+            }
+        }
+        // Cập nhật nhẹ lại số lượng từ dưới nền
+        updateSRSStatus();
+        if (document.getElementById('list').classList.contains('active')) renderList();
+    } catch(err) {
+        console.error("Lỗi tải ngầm dữ liệu:", err);
+        document.getElementById('reviewStatus').innerHTML = "⚠️ Lỗi tải ngầm một số từ!";
     }
 }
 
