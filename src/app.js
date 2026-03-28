@@ -242,10 +242,10 @@ async function loadDataFromCloud() {
     document.getElementById('reviewStatus').innerHTML = "⏳ Đang kết nối CSDL...";
     try {
         AppState.cachedWords = []; // Reset kho từ cục bộ
-        const limit = 500;
+        const limit = 50; // Giảm từ 500 xuống 50 để tải trang đầu nhanh gọn
 
         // 1. TẢI NGAY TRANG ĐẦU TIÊN VÀ HIỂN THỊ LUÔN (CHO TRẢI NGHIỆM MƯỢT TRONG TÍCH TẮC)
-        document.getElementById('reviewStatus').innerHTML = `⏳ Đang tải 500 từ đầu tiên...`;
+        document.getElementById('reviewStatus').innerHTML = `⏳ Đang tải ${limit} từ đầu tiên...`;
         const firstPageData = await fetchAllWords(AppState.currentUser.uid, 1, limit);
         AppState.cachedWords.push(...firstPageData);
         

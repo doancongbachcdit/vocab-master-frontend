@@ -166,7 +166,7 @@ export function renderQuestion(q) {
     } else { document.getElementById('btnNext').style.visibility = 'hidden'; }
 }
 
-export async function handleAnswer(btn, selected, correct) {
+export function handleAnswer(btn, selected, correct) {
     AppState.quizHistory[AppState.historyIndex].selectedId = selected.id;
     AppState.quizHistory[AppState.historyIndex].isAnswered = true;
 
@@ -197,7 +197,7 @@ export async function handleAnswer(btn, selected, correct) {
         // Sai => Đặt lại Interval=1, Level=0, EF=2.5 (hoặc EF cũ mượn tạm)
         let oldEF = correct.easeFactor !== undefined ? correct.easeFactor : 2.5;
         let newEF = Math.max(1.3, oldEF - 0.2); // Tùy chỉnh phạt EF khi sai
-        if (!AppState.isCramMode) await updateWordSRS(correct.id, 0, Date.now() + 86400000, newEF, 1);
+        if (!AppState.isCramMode) updateWordSRS(correct.id, 0, Date.now() + 86400000, newEF, 1);
     }
 }
 
@@ -232,26 +232,27 @@ export async function handleSM2Rating(quality) {
 
     const nextReview = Date.now() + (interval * 24 * 60 * 60 * 1000);
 
-    // Khóa các nút đánh giá trong lúc chờ mạng
-    document.querySelectorAll('.sm2-btn').forEach(b => b.disabled = true);
+    // Gọi updateWordSRS (không dùng await để tránh nghẽn luồng)
+    updateWordSRS(word.id, level, nextReview, easeFactor, interval);
 
-    await updateWordSRS(word.id, level, nextReview, easeFactor, interval);
-
-    document.querySelectorAll('.sm2-btn').forEach(b => b.disabled = false);
+    // Bỏ khóa nút vì chuyển trang luôn rồi
     nextQuestion(); // Tự động nhảy sang câu sau
 }
 
 export async function updateWordSRS(id, newLevel, newNextReview, newEaseFactor, newInterval) {
+    // Cập nhật RAM & UI NGAY LẬP TỨC để mượt
+    const wordInRam = AppState.cachedWords.find(w => w.id === id);
+    if (wordInRam) {
+        wordInRam.level = newLevel;
+        wordInRam.nextReview = newNextReview;
+        wordInRam.easeFactor = newEaseFactor;
+        wordInRam.interval = newInterval;
+    }
+    updateSRSStatus();
+
+    // Gửi dữ liệu về backend ngầm
     try {
         await updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval);
-        const wordInRam = AppState.cachedWords.find(w => w.id === id);
-        if (wordInRam) {
-            wordInRam.level = newLevel;
-            wordInRam.nextReview = newNextReview;
-            wordInRam.easeFactor = newEaseFactor;
-            wordInRam.interval = newInterval;
-        }
-        updateSRSStatus();
     } catch (error) { console.error("Lỗi đồng bộ SRS", error); }
 }
 
