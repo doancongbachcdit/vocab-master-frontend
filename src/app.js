@@ -139,6 +139,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnDownloadSample').addEventListener('click', downloadSample);
     document.getElementById('btnImportCSV').addEventListener('click', importCSV);
     document.getElementById('btnExportJSON').addEventListener('click', () => exportJSON(AppState.cachedWords));
+    document.getElementById('btnImportJSON').addEventListener('click', () => document.getElementById('jsonFile').click());
+    document.getElementById('jsonFile').addEventListener('change', importJSON);
     document.getElementById('btnDeleteAll').addEventListener('click', deleteAllWords);
 
     // List Search Element
@@ -601,6 +603,79 @@ async function importCSV() {
 
         } else {
             alert("Không có từ mới nào được nạp (hoặc tất cả đều bị trùng)!");
+        }
+    };
+    reader.readAsText(file);
+}
+
+async function importJSON(event) {
+    if (!AppState.currentUser) return alert("Cần đăng nhập!");
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!Array.isArray(data)) throw new Error("File JSON không hợp lệ. Hãy đảm bảo đó là file Backup gốc.");
+
+            const existingKeys = new Set(AppState.cachedWords.map(x => `${x.w.toLowerCase()}_${x.l}`));
+            let newItems = [];
+
+            data.forEach(item => {
+                const w = item.w?.trim() || "";
+                const m = item.m?.trim() || "";
+                const l = item.l?.trim().toUpperCase() || 'EN';
+                const p = item.p?.trim() || "";
+                const prf = item.prf?.trim() || "";
+                const rt = item.rt?.trim() || "";
+                const suf = item.suf?.trim() || "";
+                const ex = item.ex?.trim() || "";
+
+                if (w && m) {
+                    const itemKey = `${w.toLowerCase()}_${l}`;
+                    if (!existingKeys.has(itemKey)) {
+                        existingKeys.add(itemKey);
+                        newItems.push({ 
+                            w, m, l, p, prf, rt, suf, ex, 
+                            level: item.level || 0, 
+                            nextReview: item.nextReview || 0,
+                            easeFactor: item.easeFactor || 2.5,
+                            interval: item.interval || 0,
+                            userId: AppState.currentUser.uid 
+                        });
+                    }
+                }
+            });
+
+            if (newItems.length > 0) {
+                document.getElementById('reviewStatus').innerHTML = `⏳ Đang phục hồi ${newItems.length} từ...`;
+                
+                const btnImportJSON = document.getElementById('btnImportJSON');
+                if (btnImportJSON) {
+                    btnImportJSON.disabled = true;
+                    btnImportJSON.innerText = "⏳ Đang phục hồi...";
+                }
+
+                showLoader(`⏳ Đang phục hồi ${newItems.length} từ...`);
+                // Sử dụng tái sử dụng API import của CSV (nhận mảng Object)
+                await importCSVToBackend(newItems);
+                alert("✅ Đã phục hồi backup thành công!");
+                
+                if (btnImportJSON) {
+                    btnImportJSON.disabled = false;
+                    btnImportJSON.innerText = "⬆️ Phục hồi Backup (JSON)";
+                }
+
+                await loadDataFromCloud();
+            } else {
+                alert("Dữ liệu trong Backup đã có sẵn trên hệ thống (hoặc không có từ mới)!");
+            }
+        } catch (error) {
+            alert("Lỗi khi đọc file JSON: " + error.message);
+        } finally {
+            event.target.value = ''; // Reset input
+            hideLoader();
         }
     };
     reader.readAsText(file);
