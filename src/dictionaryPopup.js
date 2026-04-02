@@ -10,7 +10,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const popupMeaning = document.getElementById('dict-meaning');
     const backdrop = document.getElementById('dict-backdrop');
 
+    // Timestamp lúc popup được mở — dùng để chặn touchstart đóng popup quá sớm
+    let popupOpenedAt = 0;
+    const POPUP_CLOSE_COOLDOWN_MS = 800;
+
     function openPopup() {
+        popupOpenedAt = Date.now();
         popup.classList.add('active');
         // Chỉ hiện backdrop trên mobile
         if (window.innerWidth <= 768 && backdrop) {
@@ -26,47 +31,79 @@ document.addEventListener('DOMContentLoaded', () => {
     // Tap vào backdrop để đóng bottom sheet
     if (backdrop) backdrop.addEventListener('click', closePopup);
 
-    // Lắng nghe sự kiện bôi đen xong (nhả chuột) hoặc click đúp - Desktop
-    document.addEventListener('mouseup', handleSelection);
-    document.addEventListener('dblclick', handleSelection);
-
-    // ✅ Mobile: lắng nghe khi người dùng nhấc ngón tay lên sau khi bôi đen
-    // Delay 450ms để thanh menu đen của Android (Dịch/Sao chép) hiện lên trước, sau đó popup trắng mới xuất hiện phía dưới
-    document.addEventListener('touchend', (e) => {
-        setTimeout(() => handleSelection(e), 450);
+    // ─── DESKTOP: mouseup + dblclick (giữ nguyên như cũ) ─────────────────────
+    document.addEventListener('mouseup', (e) => {
+        if (!isMobile()) handleSelection(e);
     });
-
-    // Ẩn pop-up nếu click/touch ra ngoài hoặc vùng không có text
+    document.addEventListener('dblclick', (e) => {
+        if (!isMobile()) handleSelection(e);
+    });
     document.addEventListener('mousedown', (e) => {
-        if (!popup.contains(e.target) && e.target !== backdrop) {
-            closePopup();
-        }
+        if (isMobile()) return;
+        if (!popup.contains(e.target)) closePopup();
     });
+
+    // ─── MOBILE: selectionchange + debounce ──────────────────────────────────
+    // selectionchange đáng tin cậy hơn touchend: kích hoạt đúng lúc selection
+    // ổn định, không cần đợi người dùng nhấc tay lên hoàn toàn.
+    let selectionDebounce = null;
+    document.addEventListener('selectionchange', () => {
+        if (!isMobile()) return;
+        clearTimeout(selectionDebounce);
+        selectionDebounce = setTimeout(() => {
+            const selection = window.getSelection();
+            const selectedText = selection ? selection.toString().trim() : '';
+            if (selectedText.length > 0 && selectedText.length <= 300) {
+                showMobilePopup(selectedText);
+            }
+            // Không tự đóng popup khi selection cleared — người dùng có thể
+            // đang đọc nội dung popup trong khi selection đã mất
+        }, 250);
+    });
+
+    // touchstart: chỉ đóng popup nếu đã qua cooldown (tránh đóng ngay sau khi vừa mở)
     document.addEventListener('touchstart', (e) => {
+        if (!isMobile()) return;
+        const elapsed = Date.now() - popupOpenedAt;
+        if (elapsed < POPUP_CLOSE_COOLDOWN_MS) return; // Còn trong cooldown → bỏ qua
         if (!popup.contains(e.target) && e.target !== backdrop) {
             closePopup();
         }
     }, { passive: true });
 
+    // ─── Helper ──────────────────────────────────────────────────────────────
+    function isMobile() {
+        return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    }
+
+    async function showMobilePopup(selectedText) {
+        // Xóa top/left cũ để CSS bottom-sheet hoạt động đúng
+        popup.style.top = '';
+        popup.style.left = '';
+
+        popupWord.innerText = selectedText;
+        popupPhonetic.innerText = '';
+        popupMeaning.innerHTML = `<span class="loader">⏳ Đang tìm nghĩa...</span>`;
+
+        openPopup();
+        await fetchDefinition(selectedText);
+    }
+
     async function handleSelection(event) {
-        // Đảm bảo không xử lý nếu người dùng đang click vào chính phần pop-up
         if (popup.contains(event.target)) return;
 
         const selection = window.getSelection();
         const selectedText = selection.toString().trim();
 
-        // Cho phép dịch từ đơn hoặc nguyên cả một đoạn văn (giới hạn dưới 300 ký tự để pop-up không bị tràn màn hình)
         if (selectedText.length > 0 && selectedText.length <= 300) {
-
-            // Lấy vị trí của đoạn text được bôi đen
+            // Lấy vị trí của đoạn text được bôi đen (Desktop)
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
 
-            // Xác định tọa độ hiển thị pop-up cho Desktop
             const top = rect.bottom + window.scrollY + 10;
             let left = rect.left + window.scrollX;
 
-            // Cố định viewport không bị tràn ở màn máy tính nhỏ
+            // Đảm bảo không tràn ra ngoài màn hình Desktop
             const popupWidth = 280;
             const viewportWidth = window.innerWidth;
             if (left + popupWidth > viewportWidth - 10) {
@@ -74,25 +111,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (left < 10) left = 10;
 
-            // Nếu không phải là giao diện mobile gán lại top và left (bỏ qua nếu < 768px vì CSS xử lý BottomSheet rồi)
-            if (window.innerWidth > 768) {
-                popup.style.top = `${top}px`;
-                popup.style.left = `${left}px`;
-            } else {
-                // Xóa top và left cũ khi vào mobile để chạy Bottom Sheet mượt hơn
-                popup.style.top = '';
-                popup.style.left = '';
-            }
+            popup.style.top = `${top}px`;
+            popup.style.left = `${left}px`;
 
-            // Cài đặt trạng thái đang tải
             popupWord.innerText = selectedText;
             popupPhonetic.innerText = '';
             popupMeaning.innerHTML = `<span class="loader">⏳ Đang tìm nghĩa...</span>`;
 
-            // Hiện pop-up lên trước
             openPopup();
-
-            // Gọi API tra từ
             await fetchDefinition(selectedText);
         } else {
             closePopup();
