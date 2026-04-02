@@ -43,22 +43,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!popup.contains(e.target)) closePopup();
     });
 
-    // ─── MOBILE: selectionchange + debounce ──────────────────────────────────
-    // selectionchange đáng tin cậy hơn touchend: kích hoạt đúng lúc selection
-    // ổn định, không cần đợi người dùng nhấc tay lên hoàn toàn.
-    let selectionDebounce = null;
+    // ─── MOBILE: selectionchange ghi nhận + touchend hiển thị popup ──────────
+    //
+    // Tại sao không dùng selectionchange để mở popup luôn?
+    // → Vì selectionchange liên tục bắn trong khi người dùng đang kéo 2 đầu
+    //   handle để chọn nhiều từ. Nếu popup + backdrop mở ra lúc này sẽ
+    //   che màn hình, chặn thao tác kéo → người dùng chỉ chọn được 1 từ.
+    //
+    // Giải pháp: selectionchange CHỈ ghi nhận text, touchend mới mở popup
+    // (lúc người dùng nhấc tay lên = đã hoàn tất chọn).
+
+    let pendingSelectedText = '';
+
     document.addEventListener('selectionchange', () => {
         if (!isMobile()) return;
-        clearTimeout(selectionDebounce);
-        selectionDebounce = setTimeout(() => {
-            const selection = window.getSelection();
-            const selectedText = selection ? selection.toString().trim() : '';
-            if (selectedText.length > 0 && selectedText.length <= 300) {
-                showMobilePopup(selectedText);
+        const selection = window.getSelection();
+        const text = selection ? selection.toString().trim() : '';
+        // Chỉ cập nhật pending, CHƯA mở popup
+        pendingSelectedText = (text.length > 0 && text.length <= 300) ? text : '';
+    });
+
+    document.addEventListener('touchend', () => {
+        if (!isMobile()) return;
+        // Đợi 120ms để getSelection() trả về text cuối cùng sau khi nhấc tay
+        setTimeout(() => {
+            // Ưu tiên lấy lại trực tiếp từ getSelection (mới nhất sau khi nhấc tay)
+            const sel = window.getSelection();
+            const finalText = (sel ? sel.toString().trim() : '') || pendingSelectedText;
+            if (finalText.length > 0 && finalText.length <= 300) {
+                showMobilePopup(finalText);
             }
-            // Không tự đóng popup khi selection cleared — người dùng có thể
-            // đang đọc nội dung popup trong khi selection đã mất
-        }, 250);
+            pendingSelectedText = '';
+        }, 120);
     });
 
     // touchstart: chỉ đóng popup nếu đã qua cooldown (tránh đóng ngay sau khi vừa mở)
