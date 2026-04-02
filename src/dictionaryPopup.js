@@ -9,16 +9,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const popupPhonetic = document.getElementById('dict-phonetic');
     const popupMeaning = document.getElementById('dict-meaning');
 
-    // Lắng nghe sự kiện bôi đen xong (nhả chuột) hoặc click đúp
+    // Lắng nghe sự kiện bôi đen xong (nhả chuột) hoặc click đúp - Desktop
     document.addEventListener('mouseup', handleSelection);
     document.addEventListener('dblclick', handleSelection);
 
-    // Ẩn pop-up nếu click ra ngoài hoặc vùng không có text
+    // ✅ Mobile: lắng nghe khi người dùng nhấc ngón tay lên sau khi bôi đen
+    document.addEventListener('touchend', (e) => {
+        // Delay nhỏ để hệ thống kịp cập nhật window.getSelection()
+        setTimeout(() => handleSelection(e), 300);
+    });
+
+    // Ẩn pop-up nếu click/touch ra ngoài hoặc vùng không có text
     document.addEventListener('mousedown', (e) => {
         if (!popup.contains(e.target)) {
             popup.classList.remove('active');
         }
     });
+    document.addEventListener('touchstart', (e) => {
+        if (!popup.contains(e.target)) {
+            popup.classList.remove('active');
+        }
+    }, { passive: true });
 
     async function handleSelection(event) {
         // Đảm bảo không xử lý nếu người dùng đang click vào chính phần pop-up
@@ -36,7 +47,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Xác định tọa độ hiển thị pop-up
             const top = rect.bottom + window.scrollY + 10;
-            const left = rect.left + window.scrollX;
+
+            // ✅ Fix mobile: đảm bảo popup không tràn ra ngoài mép màn hình
+            const popupWidth = popup.offsetWidth || 280;
+            const viewportWidth = window.innerWidth;
+            let left = rect.left + window.scrollX;
+            if (left + popupWidth > viewportWidth - 10) {
+                left = viewportWidth - popupWidth - 10;
+            }
+            if (left < 10) left = 10;
 
             popup.style.top = `${top}px`;
             popup.style.left = `${left}px`;
@@ -119,18 +138,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let tvMeaning = "";
                 let pinyin = "";
-                
+
                 if (data[0] && Array.isArray(data[0])) {
                     data[0].forEach(item => {
                         if (item) {
                             // Nếu item[0] là string -> Đây là chuỗi dịch [ "mối quan hệ", "关系" ]
                             if (typeof item[0] === 'string') {
                                 tvMeaning += item[0];
-                            } 
+                            }
                             // Nếu item[0] là null -> Đây là mảng chứa Romanization/Pinyin (vd: [null, null, "Guānxì", ""])
                             else if (item[0] === null && item[1] === null) {
                                 // Pinyin có thể nằm ở index 2 hoặc 3 tùy từ
-                                pinyin = item[3] || item[2] || ""; 
+                                pinyin = item[3] || item[2] || "";
                             }
                         }
                     });
