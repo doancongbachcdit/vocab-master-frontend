@@ -8,26 +8,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const popupWord = document.getElementById('dict-word');
     const popupPhonetic = document.getElementById('dict-phonetic');
     const popupMeaning = document.getElementById('dict-meaning');
+    const backdrop = document.getElementById('dict-backdrop');
+
+    function openPopup() {
+        popup.classList.add('active');
+        // Chỉ hiện backdrop trên mobile
+        if (window.innerWidth <= 768 && backdrop) {
+            backdrop.classList.add('active');
+        }
+    }
+
+    function closePopup() {
+        popup.classList.remove('active');
+        if (backdrop) backdrop.classList.remove('active');
+    }
+
+    // Tap vào backdrop để đóng bottom sheet
+    if (backdrop) backdrop.addEventListener('click', closePopup);
 
     // Lắng nghe sự kiện bôi đen xong (nhả chuột) hoặc click đúp - Desktop
     document.addEventListener('mouseup', handleSelection);
     document.addEventListener('dblclick', handleSelection);
 
     // ✅ Mobile: lắng nghe khi người dùng nhấc ngón tay lên sau khi bôi đen
+    // Delay 450ms để thanh menu đen của Android (Dịch/Sao chép) hiện lên trước, sau đó popup trắng mới xuất hiện phía dưới
     document.addEventListener('touchend', (e) => {
-        // Delay nhỏ để hệ thống kịp cập nhật window.getSelection()
-        setTimeout(() => handleSelection(e), 300);
+        setTimeout(() => handleSelection(e), 450);
     });
 
     // Ẩn pop-up nếu click/touch ra ngoài hoặc vùng không có text
     document.addEventListener('mousedown', (e) => {
-        if (!popup.contains(e.target)) {
-            popup.classList.remove('active');
+        if (!popup.contains(e.target) && e.target !== backdrop) {
+            closePopup();
         }
     });
     document.addEventListener('touchstart', (e) => {
-        if (!popup.contains(e.target)) {
-            popup.classList.remove('active');
+        if (!popup.contains(e.target) && e.target !== backdrop) {
+            closePopup();
         }
     }, { passive: true });
 
@@ -45,20 +62,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
 
-            // Xác định tọa độ hiển thị pop-up
+            // Xác định tọa độ hiển thị pop-up cho Desktop
             const top = rect.bottom + window.scrollY + 10;
-
-            // ✅ Fix mobile: đảm bảo popup không tràn ra ngoài mép màn hình
-            const popupWidth = popup.offsetWidth || 280;
-            const viewportWidth = window.innerWidth;
             let left = rect.left + window.scrollX;
+
+            // Cố định viewport không bị tràn ở màn máy tính nhỏ
+            const popupWidth = 280;
+            const viewportWidth = window.innerWidth;
             if (left + popupWidth > viewportWidth - 10) {
                 left = viewportWidth - popupWidth - 10;
             }
             if (left < 10) left = 10;
 
-            popup.style.top = `${top}px`;
-            popup.style.left = `${left}px`;
+            // Nếu không phải là giao diện mobile gán lại top và left (bỏ qua nếu < 768px vì CSS xử lý BottomSheet rồi)
+            if (window.innerWidth > 768) {
+                popup.style.top = `${top}px`;
+                popup.style.left = `${left}px`;
+            } else {
+                // Xóa top và left cũ khi vào mobile để chạy Bottom Sheet mượt hơn
+                popup.style.top = '';
+                popup.style.left = '';
+            }
 
             // Cài đặt trạng thái đang tải
             popupWord.innerText = selectedText;
@@ -66,12 +90,12 @@ document.addEventListener('DOMContentLoaded', () => {
             popupMeaning.innerHTML = `<span class="loader">⏳ Đang tìm nghĩa...</span>`;
 
             // Hiện pop-up lên trước
-            popup.classList.add('active');
+            openPopup();
 
             // Gọi API tra từ
             await fetchDefinition(selectedText);
         } else {
-            popup.classList.remove('active');
+            closePopup();
         }
     }
 
