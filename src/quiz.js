@@ -46,58 +46,127 @@ export function nextQuestion() {
         AppState.historyIndex++; renderQuestion(AppState.quizHistory[AppState.historyIndex]); return;
     }
     updateSRSStatus();
-    let questionItem;
-    if (AppState.dueWords.length > 0) {
-        AppState.isCramMode = false;
-        const topN = AppState.dueWords.slice(0, 10);
-        questionItem = topN[Math.floor(Math.random() * topN.length)];
+    
+    const currentFilter = document.getElementById('quizFilter').value;
+    const filteredPool = currentFilter === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === currentFilter);
+    const filteredDue = currentFilter === 'ALL' ? AppState.dueWords : AppState.dueWords.filter(w => w.l === currentFilter);
+
+    // Chọn ngẫu nhiên loại Quiz dựa trên kho từ đã lọc
+    const types = ['multiple_choice'];
+    if (filteredPool.length >= 4) types.push('match_words');
+    
+    const wordsWithEx = filteredPool.filter(w => w.ex && w.ex.trim().length > 0);
+    if (wordsWithEx.length > 0) types.push('fill_blank');
+
+    const quizType = types[Math.floor(Math.random() * types.length)];
+
+    let qData;
+
+    if (quizType === 'match_words') {
+        // Ưu tiên lấy từ đến hạn (dueWords) trong pool đã lọc
+        let sourcePool = filteredDue.length >= 4 ? filteredDue : filteredPool;
+        
+        // Match Words thì luôn cùng ngôn ngữ (đã được filteredPool đảm bảo nếu Filter != ALL)
+        // Nếu Filter == ALL, ta vẫn nên lọc theo 1 ngôn ngữ nhất định cho vòng này để tránh lộn xộn
+        const firstWord = sourcePool[Math.floor(Math.random() * sourcePool.length)];
+        const finalPool = sourcePool.filter(w => w.l === firstWord.l);
+        
+        // Fallback nếu không đủ 4 từ cùng loại trong sourcePool
+        const backupPool = finalPool.length >= 4 ? finalPool : AppState.cachedWords.filter(w => w.l === firstWord.l);
+
+        const targetWords = backupPool.sort(() => 0.5 - Math.random()).slice(0, 4);
+        
+        // Tách riêng 2 bên: Trái (Từ gốc), Phải (Nghĩa) và xáo trộn độc lập
+        const leftSide = targetWords.map(w => ({ id: w.id, text: w.w, type: 'word' })).sort(() => 0.5 - Math.random());
+        const rightSide = targetWords.map(w => ({ id: w.id, text: w.m, type: 'meaning' })).sort(() => 0.5 - Math.random());
+
+        // Gộp xen kẽ để khi hiển thị Grid 2 cột sẽ chia đúng 2 bẻn
+        const pairs = [];
+        for (let i = 0; i < leftSide.length; i++) {
+            pairs.push(leftSide[i]);
+            pairs.push(rightSide[i]);
+        }
+
+        qData = {
+            type: 'match_words',
+            pairs: pairs,
+            matchedIds: [],
+            selectedPair: null,
+            isAnswered: false
+        };
+    } else if (quizType === 'fill_blank') {
+        const questionItem = wordsWithEx[Math.floor(Math.random() * wordsWithEx.length)];
+        
+        // Tạo distractors - CHỈ lấy từ CÙNG NGÔN NGỮ trong filteredPool
+        const distractors = filteredPool
+            .filter(x => x.id !== questionItem.id && x.l === questionItem.l)
+            .sort(() => 0.5 - Math.random())
+            .slice(0, 3)
+            .map(x => x.w);
+        
+        const options = [questionItem.w, ...distractors].sort(() => 0.5 - Math.random());
+
+        qData = {
+            type: 'fill_blank',
+            correct: questionItem,
+            options: options,
+            selectedWord: null,
+            isAnswered: false
+        };
     } else {
-        if (!AppState.isCramMode) {
-            document.getElementById('quizArea').style.display = 'none';
-            document.getElementById('doneArea').style.display = 'block';
-            document.getElementById('emptyArea').style.display = 'none';
-
-            let rawWords = [...new Set(AppState.quizHistory.map(q => q.correct))];
-            if (rawWords.length === 0) {
-                const currentFilter = document.getElementById('quizFilter').value;
-                rawWords = AppState.cachedWords.filter(w => (w.level || 0) > 0 && (currentFilter === 'ALL' ? true : w.l === currentFilter));
-            }
-            generateAIQuestions(rawWords);
-            return;
-
+        // MULTIPLE CHOICE (MẶC ĐỊNH)
+        let questionItem;
+        if (AppState.dueWords.length > 0) {
+            AppState.isCramMode = false;
+            const topN = AppState.dueWords.slice(0, 10);
+            questionItem = topN[Math.floor(Math.random() * topN.length)];
         } else {
-            const pool = document.getElementById('quizFilter').value === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
-            if (pool.length < 4) return showEmpty();
-            questionItem = pool[Math.floor(Math.random() * pool.length)];
+            if (!AppState.isCramMode) {
+                document.getElementById('quizArea').style.display = 'none';
+                document.getElementById('doneArea').style.display = 'block';
+                document.getElementById('emptyArea').style.display = 'none';
+
+                let rawWords = [...new Set(AppState.quizHistory.map(q => q.correct))].filter(Boolean);
+                if (rawWords.length === 0) {
+                    const currentFilter = document.getElementById('quizFilter').value;
+                    rawWords = AppState.cachedWords.filter(w => (w.level || 0) > 0 && (currentFilter === 'ALL' ? true : w.l === currentFilter));
+                }
+                generateAIQuestions(rawWords);
+                return;
+            } else {
+                const pool = document.getElementById('quizFilter').value === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
+                if (pool.length < 4) return showEmpty();
+                questionItem = pool[Math.floor(Math.random() * pool.length)];
+            }
         }
-    }
-    if (!questionItem) return showEmpty();
+        if (!questionItem) return showEmpty();
 
-    const pool = document.getElementById('quizFilter').value === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
-    if (pool.length < 4) return showEmpty();
+        // CHỈ lấy pool các từ cùng ngôn ngữ với câu hỏi để trắc nghiệm không bị "lạc quẻ"
+        const pool = AppState.cachedWords.filter(x => x.l === questionItem.l);
+        const distractors = [];
+        const usedMeanings = new Set([questionItem.m.trim().toLowerCase()]);
+        const shuffledPool = pool.filter(x => x.id !== questionItem.id).sort(() => 0.5 - Math.random());
 
-    const distractors = [];
-    const usedMeanings = new Set([questionItem.m.trim().toLowerCase()]);
-    const shuffledPool = pool.filter(x => x.id !== questionItem.id).sort(() => 0.5 - Math.random());
-
-    for (const item of shuffledPool) {
-        const m = item.m.trim().toLowerCase();
-        if (!usedMeanings.has(m)) {
-            usedMeanings.add(m);
-            distractors.push(item);
+        for (const item of shuffledPool) {
+            const m = item.m.trim().toLowerCase();
+            if (!usedMeanings.has(m)) {
+                usedMeanings.add(m);
+                distractors.push(item);
+            }
+            if (distractors.length === 3) break;
         }
-        if (distractors.length === 3) break;
+
+        if (distractors.length < 3) {
+            const extra = shuffledPool.filter(x => !distractors.includes(x)).slice(0, 3 - distractors.length);
+            distractors.push(...extra);
+        }
+        const options = [questionItem, ...distractors].sort(() => 0.5 - Math.random());
+
+        qData = { type: 'multiple_choice', correct: questionItem, options: options, selectedId: null, isAnswered: false };
     }
 
-    // Fallback trong trường hợp đặc biệt không đủ từ có nghĩa khác nhau
-    if (distractors.length < 3) {
-        const extra = shuffledPool.filter(x => !distractors.includes(x)).slice(0, 3 - distractors.length);
-        distractors.push(...extra);
-    }
-    const options = [questionItem, ...distractors].sort(() => 0.5 - Math.random());
-
-    const qData = { correct: questionItem, options: options, selectedId: null, isAnswered: false };
-    AppState.quizHistory.push(qData); AppState.historyIndex++;
+    AppState.quizHistory.push(qData);
+    AppState.historyIndex++;
 
     document.getElementById('doneArea').style.display = 'none';
     document.getElementById('quizArea').style.display = 'block';
@@ -113,14 +182,31 @@ export function prevQuestion() {
 }
 
 export function renderQuestion(q) {
+    // Reset Visibility
+    document.getElementById('modeMultipleChoice').style.display = 'none';
+    document.getElementById('modeMatchWords').style.display = 'none';
+    document.getElementById('modeFillBlank').style.display = 'none';
+    document.getElementById('qMsg').innerText = '';
+    document.getElementById('btnNext').style.visibility = (q.isAnswered && q.type !== 'match_words' ) ? 'visible' : 'hidden'; // MatchWords tự nhảy nên ko cần Next trừ khi xong
+    document.getElementById('sm2Actions').style.display = 'none';
+    document.getElementById('btnPrev').disabled = (AppState.historyIndex <= 0);
+
+    if (q.type === 'match_words') {
+        renderMatchWords(q);
+    } else if (q.type === 'fill_blank') {
+        renderFillBlank(q);
+    } else {
+        renderMultipleChoice(q);
+    }
+}
+
+function renderMultipleChoice(q) {
+    document.getElementById('modeMultipleChoice').style.display = 'block';
     AppState.currentQuizItem = q.correct;
     document.getElementById('qWord').innerText = q.correct.w;
 
     const hintArea = document.getElementById('aiHintArea');
-    if (hintArea) {
-        hintArea.style.display = 'none';
-        hintArea.innerHTML = '';
-    }
+    if (hintArea) { hintArea.style.display = 'none'; hintArea.innerHTML = ''; }
 
     const phoneticEl = document.getElementById('qPhonetic');
     phoneticEl.innerText = q.correct.p || "(Chưa có phiên âm)";
@@ -135,7 +221,7 @@ export function renderQuestion(q) {
     }
 
     const grid = document.getElementById('qOptions');
-    grid.innerHTML = ''; document.getElementById('qMsg').innerText = '';
+    grid.innerHTML = '';
 
     q.options.forEach(opt => {
         const btn = document.createElement('button');
@@ -151,19 +237,82 @@ export function renderQuestion(q) {
         grid.appendChild(btn);
     });
 
-    document.getElementById('btnPrev').disabled = (AppState.historyIndex <= 0);
-    document.getElementById('sm2Actions').style.display = 'none';
-
     if (q.isAnswered) {
         if (q.selectedId === q.correct.id && !AppState.isCramMode) {
             document.getElementById('sm2Actions').style.display = 'flex';
             document.getElementById('btnNext').style.visibility = 'hidden';
         } else {
             document.getElementById('btnNext').style.visibility = 'visible';
-            document.getElementById('sm2Actions').style.display = 'none';
         }
         document.getElementById('qMsg').innerHTML = (q.selectedId === q.correct.id) ? "<span style='color:var(--success)'>Chính xác! 🎉</span>" : "<span style='color:var(--danger)'>Sai rồi!</span>";
-    } else { document.getElementById('btnNext').style.visibility = 'hidden'; }
+    }
+}
+
+function renderMatchWords(q) {
+    document.getElementById('modeMatchWords').style.display = 'block';
+    const grid = document.getElementById('matchGrid');
+    grid.innerHTML = '';
+
+    q.pairs.forEach((item, index) => {
+        const card = document.createElement('div');
+        card.className = 'match-card';
+        card.innerText = item.text;
+        card.setAttribute('data-id', item.id);
+        card.setAttribute('data-type', item.type);
+        card.setAttribute('data-index', index);
+
+        if (q.matchedIds.includes(item.id)) {
+            card.classList.add('matched');
+        } else if (q.selectedPair && q.selectedPair.index == index) {
+            card.classList.add('selected');
+        }
+
+        grid.appendChild(card);
+    });
+
+    if (q.isAnswered) {
+        document.getElementById('qMsg').innerHTML = "<span style='color:var(--success)'>Đã hoàn thành ghép cặp! 🎉</span>";
+        document.getElementById('btnNext').style.visibility = 'visible';
+    }
+}
+
+function renderFillBlank(q) {
+    document.getElementById('modeFillBlank').style.display = 'block';
+    AppState.currentQuizItem = q.correct;
+    
+    // Câu đục lỗ
+    const sentenceEl = document.getElementById('fbSentence');
+    const wordRegex = new RegExp(`\\b${q.correct.w}\\b`, 'gi');
+    const displaySentence = q.correct.ex.replace(wordRegex, (match) => {
+        const text = q.isAnswered ? match : (q.selectedWord || '');
+        return `<span class="blank-box ${q.isAnswered ? 'filled' : ''}">${text}</span>`;
+    });
+    sentenceEl.innerHTML = `"${displaySentence}"<br><small style="color:#64748b; font-weight:normal; font-style:italic">(${q.correct.m})</small>`;
+
+    // Options
+    const optContainer = document.getElementById('fbOptions');
+    optContainer.innerHTML = '';
+    q.options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = `fb-pill ${q.selectedWord === opt ? 'used' : ''}`;
+        btn.innerText = opt;
+        btn.disabled = q.isAnswered;
+        optContainer.appendChild(btn);
+    });
+
+    if (q.isAnswered) {
+        const isCorrect = q.selectedWord.toLowerCase() === q.correct.w.toLowerCase();
+        document.getElementById('qMsg').innerHTML = isCorrect 
+            ? "<span style='color:var(--success)'>Chính xác! 🎉</span>" 
+            : `<span style='color:var(--danger)'>Sai rồi! Đáp án là: <b>${q.correct.w}</b></span>`;
+        
+        if (isCorrect && !AppState.isCramMode) {
+            document.getElementById('sm2Actions').style.display = 'flex';
+            document.getElementById('btnNext').style.visibility = 'hidden';
+        } else {
+            document.getElementById('btnNext').style.visibility = 'visible';
+        }
+    }
 }
 
 export function handleAnswer(btn, selected, correct) {
@@ -254,6 +403,85 @@ export async function updateWordSRS(id, newLevel, newNextReview, newEaseFactor, 
     try {
         await updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval);
     } catch (error) { console.error("Lỗi đồng bộ SRS", error); }
+}
+
+export function handleMatchClick(card, id, type, index) {
+    const qData = AppState.quizHistory[AppState.historyIndex];
+    if (qData.isAnswered || card.classList.contains('matched')) return;
+
+    // Nếu bấm lại thẻ cũ thì bỏ chọn
+    if (qData.selectedPair && qData.selectedPair.index == index) {
+        qData.selectedPair = null;
+        renderQuestion(qData);
+        return;
+    }
+
+    if (!qData.selectedPair) {
+        // Chọn thẻ thứ nhất
+        qData.selectedPair = { id, type, index, el: card };
+        renderQuestion(qData);
+    } else {
+        // Chọn thẻ thứ hai -> Kiểm tra match
+        const first = qData.selectedPair;
+        if (first.id === id && first.type !== type) {
+            // MATCH!
+            qData.matchedIds.push(id);
+            qData.selectedPair = null;
+            
+            const wordObj = AppState.cachedWords.find(w => w.id === id);
+            if (wordObj) speakText(wordObj.w, wordObj.l);
+            
+            // Kiểm tra xem đã hết chưa
+            const totalPairs = qData.pairs.length / 2;
+            if (qData.matchedIds.length === totalPairs) {
+                qData.isAnswered = true;
+                // Cộng điểm SRS ngầm cho cả 4 từ (tự động cộng "Dễ")
+                qData.matchedIds.forEach(matchId => {
+                    const word = AppState.cachedWords.find(w => w.id === matchId);
+                    if (word) {
+                        let easeFactor = word.easeFactor || 2.5;
+                        let interval = word.interval || 0;
+                        let level = word.level || 0;
+                        if (level === 0) interval = 1; else if (level === 1) interval = 6; else interval = Math.round(interval * (easeFactor+0.1));
+                        level++;
+                        const nextReview = Date.now() + (interval * 24 * 60 * 60 * 1000);
+                        updateWordSRS(matchId, level, nextReview, easeFactor + 0.1, interval);
+                    }
+                });
+            }
+            renderQuestion(qData);
+        } else {
+            // SAI
+            card.classList.add('wrong');
+            first.el.classList.add('wrong');
+            qData.selectedPair = null;
+            setTimeout(() => {
+                renderQuestion(qData);
+            }, 500);
+        }
+    }
+}
+
+export function handleFillBlankOptionClick(word) {
+    const qData = AppState.quizHistory[AppState.historyIndex];
+    if (qData.isAnswered) return;
+
+    qData.selectedWord = word;
+    qData.isAnswered = true;
+    
+    const isCorrect = word.toLowerCase() === qData.correct.w.toLowerCase();
+    
+    if (isCorrect) {
+        speakText(qData.correct.w, qData.correct.l, qData.correct.ex);
+    } else {
+        // Sai thì phạt SRS
+        if (!AppState.isCramMode) {
+            let oldEF = qData.correct.easeFactor || 2.5;
+            updateWordSRS(qData.correct.id, 0, Date.now() + 86400000, Math.max(1.3, oldEF - 0.2), 1);
+        }
+    }
+    
+    renderQuestion(qData);
 }
 
 export function forceReviewMode() { AppState.isCramMode = true; nextQuestion(); }

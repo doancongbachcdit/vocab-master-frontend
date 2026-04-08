@@ -129,17 +129,10 @@ export function loadRandomDictation() {
 
 export function playDictationAudio(rate = 1.0) {
     if (!currentDictationItem) return;
-    synth.cancel();
-
-    currentUtterance = new SpeechSynthesisUtterance(currentDictationItem.ex);
-    // Sử dụng mã ngôn ngữ tuỳ theo từ vựng hiện tại (EN = en-US, CN = zh-CN)
-    currentUtterance.lang = currentDictationItem.l === 'CN' ? 'zh-CN' : 'en-US';
-    currentUtterance.rate = rate;
-
-    currentUtterance.onstart = () => isPlaying = true;
-    currentUtterance.onend = () => isPlaying = false;
-
-    synth.speak(currentUtterance);
+    
+    // Sử dụng hàm speakText từ utils.js để có giọng đọc chất lượng cao
+    // rate mặc định của speakText là 0.9, ở đây ta truyền rate từ Dictation vào (1.0 hoặc 0.75)
+    speakText("", currentDictationItem.l, currentDictationItem.ex, rate);
 }
 
 export function checkDictationTarget() {

@@ -70,21 +70,43 @@
             </div>
 
             <div id="quizArea" style="display:none">
-                <div class="word-container">
-                    <div>
-                        <span class="word-display" id="qWord">---</span>
-                        <button class="btn-speak" id="btnSpeak">🔊</button>
-                        <button class="btn-speak" id="btnHint" style="font-size: 1.3rem;"
-                            title="Xin AI gợi ý">💡</button>
+                <!-- VÙNG 1: TRẮC NGHIỆM -->
+                <div id="modeMultipleChoice" style="display:none; width: 100%;">
+                    <div class="word-container">
+                        <div>
+                            <span class="word-display" id="qWord">---</span>
+                            <button class="btn-speak" id="btnSpeak">🔊</button>
+                            <button class="btn-speak" id="btnHint" style="font-size: 1.3rem;"
+                                title="Xin AI gợi ý">💡</button>
+                        </div>
+                        <div id="qPhonetic" class="phonetic-display blur-text">---</div>
+                        <div id="qex" style="font-size:0.95em; color:#64748b; font-style:italic; margin-bottom:15px;"></div>
+                        <div id="aiHintArea"
+                            style="display:none; font-size: 0.9em; padding: 12px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; margin: 10px 0; color: #b45309; text-align: left; line-height: 1.5;">
+                        </div>
                     </div>
-                    <div id="qPhonetic" class="phonetic-display blur-text">---</div>
-                    <div id="qex" style="font-size:0.95em; color:#64748b; font-style:italic; margin-bottom:15px;"></div>
-                    <div id="aiHintArea"
-                        style="display:none; font-size: 0.9em; padding: 12px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 8px; margin: 10px 0; color: #b45309; text-align: left; line-height: 1.5;">
+
+                    <div class="grid-options" id="qOptions"></div>
+                </div>
+
+                <!-- VÙNG 2: NỐI TỪ -->
+                <div id="modeMatchWords" style="display:none; width: 100%;">
+                    <div style="font-size: 1.2rem; font-weight: bold; text-align: center; margin: 20px 0; color: var(--primary);">Ghép cặp thẻ tương ứng</div>
+                    <div id="matchGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                        <!-- Các thẻ nối -->
                     </div>
                 </div>
 
-                <div class="grid-options" id="qOptions"></div>
+                <!-- VÙNG 3: ĐIỀN TỪ -->
+                <div id="modeFillBlank" style="display:none; width: 100%;">
+                    <div style="font-size: 1.2rem; font-weight: bold; text-align: center; margin: 20px 0 10px 0; color: var(--primary);">Điền từ còn thiếu vào ô trống</div>
+                    <div id="fbSentence" style="font-size: 1.25rem; font-family: 'Segoe UI', serif; font-weight: 500; text-align: center; margin-bottom: 30px; line-height: 1.8; color: #334155;">
+                        <!-- Câu đục lỗ -->
+                    </div>
+                    <div id="fbOptions" style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                        <!-- Options điền từ dạng nút nhấn -->
+                    </div>
+                </div>
 
                 <div id="qMsg" style="text-align:center; height:25px; margin:15px 0; font-weight:bold"></div>
 
@@ -244,9 +266,17 @@
     <!-- Thẻ div dùng làm Pop-up tra từ -->
     <div id="dict-backdrop"></div>
     <div id="dict-popup">
-        <div id="dict-word"></div>
-        <div id="dict-phonetic"></div>
+        <div id="dict-header">
+            <div id="dict-title-wrapper">
+                <span id="dict-word"></span>
+                <button id="dict-audio-btn" style="display:none;" title="Nghe phát âm">🔊</button>
+            </div>
+            <div id="dict-phonetic"></div>
+        </div>
         <div id="dict-meaning"></div>
+        <div id="dict-footer">
+            <!-- <button id="dict-save-btn">+ Lưu từ này</button> -->
+        </div>
     </div>
 
     <!-- Main App Logic -->

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config.js';
+import { speakText } from './utils.js';
 
 // Tính năng bôi đen từ vựng để tra từ điển nhanh
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,9 +11,68 @@ document.addEventListener('DOMContentLoaded', () => {
     const popupMeaning = document.getElementById('dict-meaning');
     const backdrop = document.getElementById('dict-backdrop');
 
+    // UI eJoy elements
+    const audioBtn = document.getElementById('dict-audio-btn');
+    const saveBtn = document.getElementById('dict-save-btn');
+
     // Timestamp lúc popup được mở — dùng để chặn touchstart đóng popup quá sớm
     let popupOpenedAt = 0;
     const POPUP_CLOSE_COOLDOWN_MS = 800;
+
+    // Data for saving word
+    let currentWordData = { word: '', phonetic: '', meaning: '', audioUrl: '', lang: 'EN' };
+
+    // --- eJoy UI Logic ---
+    if (audioBtn) {
+        audioBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // prevent popup from closing
+            const { word, audioUrl, lang } = currentWordData;
+
+            if (audioUrl) {
+                const audio = new Audio(audioUrl);
+                audio.play().catch(err => {
+                    console.log('Audio file error, falling back to TTS:', err);
+                    speakText(word, lang);
+                });
+            } else if (word) {
+                // Sử dụng hàm speakText tập trung để có giọng đọc chất lượng cao
+                speakText(word, lang);
+            }
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+
+            const originalText = saveBtn.innerText;
+            saveBtn.innerHTML = '⏳ Đang lưu...';
+            saveBtn.disabled = true;
+
+            try {
+                await saveWordToDeck(currentWordData);
+                saveBtn.innerHTML = 'Đã lưu ✓';
+                saveBtn.style.background = 'var(--success)';
+            } catch (err) {
+                console.error("Lỗi lưu từ:", err);
+                saveBtn.innerHTML = '❌ Lỗi';
+            }
+
+            setTimeout(() => {
+                saveBtn.innerText = '+ Lưu từ này';
+                saveBtn.style.background = '';
+                saveBtn.disabled = false;
+            }, 2000);
+        });
+    }
+
+    async function saveWordToDeck(wordData) {
+        // TODO: Call C# API
+        console.log("-- GỌI API LƯU TỪ VỰNG --");
+        console.log("Payload:", wordData);
+        // Skeleton mock API delay
+        return new Promise(resolve => setTimeout(resolve, 500));
+    }
 
     function openPopup() {
         popupOpenedAt = Date.now();
@@ -100,6 +160,9 @@ document.addEventListener('DOMContentLoaded', () => {
         popupWord.innerText = selectedText;
         popupPhonetic.innerText = '';
         popupMeaning.innerHTML = `<span class="loader">⏳ Đang tìm nghĩa...</span>`;
+        if (audioBtn) audioBtn.style.display = 'none';
+
+        currentWordData = { word: selectedText, phonetic: '', meaning: '', audioUrl: '' };
 
         openPopup();
         await fetchDefinition(selectedText);
@@ -133,6 +196,9 @@ document.addEventListener('DOMContentLoaded', () => {
             popupWord.innerText = selectedText;
             popupPhonetic.innerText = '';
             popupMeaning.innerHTML = `<span class="loader">⏳ Đang tìm nghĩa...</span>`;
+            if (audioBtn) audioBtn.style.display = 'none';
+
+            currentWordData = { word: selectedText, phonetic: '', meaning: '', audioUrl: '' };
 
             openPopup();
             await fetchDefinition(selectedText);
@@ -143,16 +209,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchDefinition(word) {
         // Chỉ gọi API Từ điển tiếng Anh nếu đó là MỘT TỪ ĐƠN thuần tiếng Anh (không chứa khoảng trắng, số...)
-        const isEnglishWord = /^[a-zA-Z\-']+$/.test(word);
+        // Nâng cấp: Cho phép cụm từ tối đa 3 từ
+        const wordCount = word.trim().split(/\s+/).length;
+        const isEnglishWord = wordCount <= 3 && /^[a-zA-Z\- '\.]+$/.test(word);
+        currentWordData.lang = isEnglishWord ? 'EN' : 'CN';
 
         if (!isEnglishWord) {
-            // Đây không phải là tiếng Anh (ví dụ tiếng Trung, số...), bỏ qua API Anh-Anh luôn để tránh bị web báo lỗi Đỏ (404)
+            // Trường hợp Câu/Đoạn văn hoặc không phải tiếng Anh
             popupWord.innerText = word;
-            popupPhonetic.innerText = '';
-            popupMeaning.innerHTML = `<div id="dict-vn-meaning" style="color: #2563eb; font-weight: 500; font-size: 15px;"><span class="loader">⏳ Đang dịch...</span></div>`;
+            popupPhonetic.style.display = 'none'; // Ẩn phiên âm
+
+            // Vẫn cho phép đọc bằng TTS Audio Web API
+            currentWordData.audioUrl = ''; // Fallback TTS
+            if (audioBtn) audioBtn.style.display = 'flex';
+
+            popupMeaning.innerHTML = `
+                <div id="dict-vn-meaning" style="color: #334155; font-size: 15px; margin-bottom: 15px;"><span class="loader">⏳ Đang dịch...</span></div>
+                <button id="btn-deep-ai" class="btn btn-outline" style="font-size:13px; padding: 8px;">🤖 Dịch sâu bằng AI</button>
+            `;
+
+            setTimeout(() => {
+                const aiBtn = document.getElementById('btn-deep-ai');
+                if (aiBtn) aiBtn.addEventListener('click', () => alert('Tính năng gọi API AI Backend C# sắp ra mắt!'));
+            }, 50);
+
             fetchVietnameseMeaning(word);
             return;
         }
+
+        popupPhonetic.style.display = 'block'; // Hiện lại phiên âm
 
         try {
             // 1. Gọi API miễn phí lấy tiếng Anh (Rất nhanh)
@@ -166,16 +251,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const entry = data[0];
             const phonetic = entry.phonetic || (entry.phonetics.find(p => p.text) || {}).text || '';
+
+            // Lấy URL âm thanh (eJoy feature)
+            const phoneticWithAudio = entry.phonetics.find(p => p.audio && p.audio.length > 0);
+            const audioUrl = phoneticWithAudio ? phoneticWithAudio.audio : '';
+            if (audioUrl || word) {
+                if (audioBtn) audioBtn.style.display = 'flex';
+                currentWordData.audioUrl = audioUrl;
+            }
+
             const firstMeaning = entry.meanings[0];
             const partOfSpeech = firstMeaning.partOfSpeech;
             const definition = firstMeaning.definitions[0].definition;
+
+            currentWordData.phonetic = phonetic;
+            currentWordData.meaning = `(${partOfSpeech}) ${definition}`;
 
             // Hiển thị tiếng Anh trước
             popupWord.innerText = entry.word;
             popupPhonetic.innerText = phonetic ? phonetic : '';
             popupMeaning.innerHTML = `
                 <div style="margin-bottom: 8px; color: #334155;"><b>(EN)</b> <i>${partOfSpeech}</i>: ${definition}</div>
-                <div id="dict-vn-meaning" style="color: #2563eb; font-weight: 500; border-top: 1px dashed #cbd5e1; padding-top: 8px;"><span class="loader">⏳ Đang dò nghĩa Tiếng Việt...</span></div>
+                <div class="dict-divider"></div>
+                <div id="dict-vn-meaning" style="color: #2563eb; font-weight: 500;"><span class="loader">⏳ Đang dò nghĩa Tiếng Việt...</span></div>
             `;
 
             // 2. Gọi API lấy tiếng Việt
@@ -184,7 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             // Nếu từ điển Anh-Anh không tìm thấy (ví dụ: tiếng Trung, tiếng Nhật, tên riêng...)
             popupWord.innerText = word;
-            popupPhonetic.innerText = '';
+            popupPhonetic.style.display = 'none';
+            if (audioBtn) audioBtn.style.display = 'flex'; // fallback TTS
             popupMeaning.innerHTML = `<div id="dict-vn-meaning" style="color: #2563eb; font-weight: 500; font-size: 15px;"><span class="loader">⏳ Đang dịch...</span></div>`;
             fetchVietnameseMeaning(word);
         }
@@ -223,9 +322,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Trình bày kết quả dịch gọn gàng
                 if (pinyin && pinyin.toLowerCase() !== word.toLowerCase()) {
-                    vnDiv.innerHTML = `<b>(Dịch)</b> [${pinyin}] ${tvMeaning.trim()}`;
+                    vnDiv.innerHTML = `<b>(VI)</b> [${pinyin}] ${tvMeaning.trim()}`;
                 } else {
-                    vnDiv.innerHTML = `<b>(Dịch)</b> ${tvMeaning.trim()}`;
+                    vnDiv.innerHTML = `<b>(VI)</b> ${tvMeaning.trim()}`;
+                }
+
+                // Cập nhật nghĩa tiếng Việt vào currentWordData
+                if (!currentWordData.meaning) {
+                    currentWordData.meaning = tvMeaning.trim();
+                } else {
+                    currentWordData.meaning += ` | (VI) ${tvMeaning.trim()}`;
                 }
             } else {
                 vnDiv.innerHTML = `<b>(Lỗi)</b> ❌ Không thể dịch (Mã: ${response.status})`;

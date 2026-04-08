@@ -5,7 +5,7 @@ import { speakText, downloadSample, exportJSON } from './utils.js';
 import { API_BASE_URL, AppState, resetAppState } from './config.js';
 import { gradeAnswer, getAIHint, generateAIQuestions } from './ai-services.js';
 import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBackend, updateWordSRSToBackend, deleteAllWordsFromFirebase } from './api.js';
-import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode, handleSM2Rating } from './quiz.js';
+import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode, handleSM2Rating, handleMatchClick, handleFillBlankOptionClick } from './quiz.js';
 import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
 import { loadRandomDictation, handleDictationKeydown } from './dictation.js';
 import './dictation.js'; // Kích hoạt chức năng Dictation ngay khi app load
@@ -147,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('search');
     searchInput.addEventListener('input', renderList);
 
-    // Event Delegation cho Quiz Options
+    // Event Delegation cho Quiz Options (Trắc nghiệm)
     document.getElementById('qOptions').addEventListener('click', (e) => {
         if (e.target.classList.contains('opt-btn') && !e.target.disabled) {
             const optId = e.target.getAttribute('data-id');
@@ -156,6 +156,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (selectedOpt) {
                 handleAnswer(e.target, selectedOpt, qData.correct);
             }
+        }
+    });
+
+    // Event Delegation cho Match Grid (Nối từ)
+    document.getElementById('matchGrid').addEventListener('click', (e) => {
+        const card = e.target.closest('.match-card');
+        if (card && !card.classList.contains('matched')) {
+            const id = card.getAttribute('data-id');
+            const type = card.getAttribute('data-type');
+            const index = card.getAttribute('data-index');
+            handleMatchClick(card, id, type, index);
+        }
+    });
+
+    // Event Delegation cho Fill Blank Options (Điền từ)
+    document.getElementById('fbOptions').addEventListener('click', (e) => {
+        if (e.target.classList.contains('fb-pill') && !e.target.disabled) {
+            handleFillBlankOptionClick(e.target.innerText);
         }
     });
 

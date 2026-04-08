@@ -1,28 +1,47 @@
 // Hàm đọc âm thanh
-export function speakText(word, lang, example = "") {
+export function speakText(word, lang, example = "", rate = 0.9) {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
 
-    // Nếu có câu ví dụ, nó sẽ đọc từ vựng, ngắt nghỉ 1 nhịp, rồi đọc câu ví dụ
     const textToSpeak = example ? `${word}... ${example}` : word;
-
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
+
+    // Lấy danh sách giọng đọc hiện có
+    const voices = window.speechSynthesis.getVoices();
 
     if (lang === 'CN') {
         utterance.lang = 'zh-CN';
+        // Tìm giọng Trung Quốc chất lượng cao (ưu tiên Google hoặc Microsoft)
+        const cnVoice = voices.find(v => v.lang === 'zh-CN' && (v.name.includes("Google") || v.name.includes("Microsoft")));
+        if (cnVoice) utterance.voice = cnVoice;
     } else {
         utterance.lang = 'en-US';
-        // Tối ưu hóa giọng đọc: Tìm luồng giọng Anh/Mỹ chất lượng cao (ưu tiên Google)
-        const voices = window.speechSynthesis.getVoices();
-        if (voices.length > 0) {
-            const premiumVoice = voices.find(v => v.name.includes("Google US English") || v.name.includes("Google UK English Female") || v.lang.includes("en-US"));
-            if (premiumVoice) {
-                utterance.voice = premiumVoice;
-            }
+        // Ưu tiên các giọng "Natural" (trên Edge) hoặc "Google" (trên Chrome)
+        // Những giọng này nghe sẽ "người" hơn và hoàn toàn miễn phí
+        const preferredVoices = [
+            "Microsoft Aria Online", // Giọng nữ rất hay của Edge
+            "Google US English",      // Giọng chuẩn của Chrome
+            "Microsoft Guy Online",   // Giọng nam hay của Edge
+            "English (United States)"
+        ];
+
+        let selectedVoice = null;
+        for (const name of preferredVoices) {
+            selectedVoice = voices.find(v => v.name.includes(name));
+            if (selectedVoice) break;
         }
+
+        if (!selectedVoice) {
+            selectedVoice = voices.find(v => v.lang.includes("en-US") || v.lang.includes("en_US"));
+        }
+        
+        if (selectedVoice) utterance.voice = selectedVoice;
     }
 
-    utterance.rate = 0.85; // Đọc chậm một chút để dễ nghe phát âm
+    utterance.rate = rate; // Tốc độ truyền vào (mặc định 0.9)
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
     window.speechSynthesis.speak(utterance);
 }
 

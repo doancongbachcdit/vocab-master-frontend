@@ -1,87 +1,546 @@
-:root { --primary: #4f46e5; --bg: #f8fafc; --card: #fff; --text: #334155; --success: #22c55e; --danger: #ef4444; --warning: #f59e0b; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; max-width: 600px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
-        
-        .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .tabs { display: flex; gap: 8px; margin-bottom: 20px; background: #e2e8f0; padding: 4px; border-radius: 12px; }
-        .tab-btn { flex: 1; padding: 12px; border: none; background: none; font-weight: 600; cursor: pointer; border-radius: 8px; color: #64748b; transition: 0.2s; }
-        .tab-btn.active { background: #fff; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .content { display: none; animation: fadeIn 0.3s; }
-        .content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; } }
+:root {
+    --primary: #4f46e5;
+    --bg: #f8fafc;
+    --card: #fff;
+    --text: #334155;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+}
 
-        input, select { width: 100%; padding: 14px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 10px; box-sizing: border-box; font-size: 16px; }
-        .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; color: white; display: flex; justify-content: center; align-items: center; gap: 8px; transition: 0.2s; font-size: 16px; }
-        .btn:active { transform: scale(0.98); }
-        .btn-primary { background: var(--primary); }
-        .btn-success { background: var(--success); }
-        .btn-danger { background: var(--danger); }
-        .btn-outline { background: white; border: 1px solid #cbd5e1; color: var(--text); }
-        
-        /* SRS Badge */
-        .srs-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; font-size: 0.9em; background: #eff6ff; padding: 10px; border-radius: 8px; color: var(--primary); }
-        .due-badge { background: var(--danger); color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
-        
-        /* Quiz Styles */
-        .word-container { text-align: center; margin: 30px 0; }
-        .word-display { font-size: 2.2rem; font-weight: 800; color: var(--primary); display: inline-block; cursor: pointer; }
-        .phonetic-display { font-size: 1.1rem; color: #64748b; margin-top: 5px; font-family: 'Segoe UI', sans-serif; min-height: 24px; }
-        .blur-text { filter: blur(5px); opacity: 0.5; cursor: pointer; transition: 0.3s; }
-        .blur-text:hover, .blur-text.revealed { filter: none; opacity: 1; }
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
 
-        .btn-speak { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--primary); padding: 0 10px; vertical-align: middle; }
-        
-        .grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .opt-btn { padding: 18px; background: white; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 1rem; cursor: pointer; font-weight: 500; }
-        .opt-btn:hover { background: #f1f5f9; }
-        .opt-btn.correct { background: var(--success); color: white; border-color: var(--success); }
-        .opt-btn.wrong { background: var(--danger); color: white; border-color: var(--danger); opacity: 0.6; }
+.card {
+    background: var(--card);
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
 
-        .vocab-item { display: flex; justify-content: space-between; padding: 14px; border-bottom: 1px solid #f1f5f9; align-items: center; }
-        .level-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    background: #e2e8f0;
+    padding: 4px;
+    border-radius: 12px;
+}
 
-        /* Dictionary Popup - Desktop: floating tooltip */
-        #dict-popup { position: absolute; z-index: 9999; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15); border-radius: 12px; padding: 14px; max-width: 280px; font-size: 14px; display: none; pointer-events: none; transition: opacity 0.2s ease-in-out, transform 0.2s ease; opacity: 0; transform: translateY(-4px); }
-        #dict-popup.active { display: block; pointer-events: auto; opacity: 1; transform: translateY(0); }
-        #dict-word { font-weight: bold; font-size: 16px; color: var(--primary); margin-bottom: 5px; text-transform: capitalize; }
-        #dict-phonetic { color: #64748b; font-style: italic; margin-bottom: 8px; font-size: 13px; }
-        #dict-meaning { color: #333; }
-        .loader { display: inline-block; font-size: 13px; color: #666; }
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: none;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    color: #64748b;
+    transition: 0.2s;
+}
 
-        /* Backdrop cho mobile bottom sheet */
-        #dict-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 99998; }
-        #dict-backdrop.active { display: block; }
+.tab-btn.active {
+    background: #fff;
+    color: var(--primary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
 
-        /* Dictionary Popup - Mobile: bottom sheet (tránh bị thanh đen hệ thống Android đè) */
-        @media (max-width: 768px) {
-            #dict-popup {
-                position: fixed !important;
-                bottom: 0 !important;
-                left: 0 !important;
-                top: auto !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                border-radius: 20px 20px 0 0;
-                box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.18);
-                padding: 20px 20px 32px 20px;
-                transform: translateY(100%);
-                opacity: 1;
-                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                z-index: 99999;
-            }
-            #dict-popup.active {
-                transform: translateY(0) !important;
-                display: block;
-            }
-            #dict-popup::before {
-                content: '';
-                display: block;
-                width: 40px;
-                height: 4px;
-                background: #cbd5e1;
-                border-radius: 2px;
-                margin: 0 auto 14px auto;
-            }
-            #dict-word { font-size: 20px; }
-            #dict-phonetic { font-size: 14px; }
-            #dict-meaning { font-size: 15px; line-height: 1.6; }
-        }
+.content {
+    display: none;
+    animation: fadeIn 0.3s;
+}
+
+.content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+input,
+select {
+    width: 100%;
+    padding: 14px;
+    margin-bottom: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-sizing: border-box;
+    font-size: 16px;
+}
+
+.btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    transition: 0.2s;
+    font-size: 16px;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary {
+    background: var(--primary);
+}
+
+.btn-success {
+    background: var(--success);
+}
+
+.btn-danger {
+    background: var(--danger);
+}
+
+.btn-outline {
+    background: white;
+    border: 1px solid #cbd5e1;
+    color: var(--text);
+}
+
+/* SRS Badge */
+.srs-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    background: #eff6ff;
+    padding: 10px;
+    border-radius: 8px;
+    color: var(--primary);
+}
+
+.due-badge {
+    background: var(--danger);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+/* Quiz Styles */
+.word-container {
+    text-align: center;
+    margin: 30px 0;
+}
+
+.word-display {
+    font-size: 2.2rem;
+    font-weight: 800;
+    color: var(--primary);
+    display: inline-block;
+    cursor: pointer;
+}
+
+.phonetic-display {
+    font-size: 1.1rem;
+    color: #64748b;
+    margin-top: 5px;
+    font-family: 'Segoe UI', sans-serif;
+    min-height: 24px;
+}
+
+.blur-text {
+    filter: blur(5px);
+    opacity: 0.5;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.blur-text:hover,
+.blur-text.revealed {
+    filter: none;
+    opacity: 1;
+}
+
+.btn-speak {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--primary);
+    padding: 0 10px;
+    vertical-align: middle;
+}
+
+.grid-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.opt-btn {
+    padding: 18px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.opt-btn:hover {
+    background: #f1f5f9;
+}
+
+.opt-btn.correct {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+}
+
+.opt-btn.wrong {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+    opacity: 0.6;
+}
+
+/* Match Words Styles */
+.match-card {
+    padding: 16px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    text-align: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.match-card:hover:not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border-color: #cbd5e1;
+}
+
+.match-card.selected {
+    background: #eff6ff;
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: scale(0.98);
+}
+
+.match-card.matched {
+    background: #dcfce7;
+    border-color: var(--success);
+    color: #166534;
+    opacity: 0.2;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    transform: scale(0.9);
+}
+
+.match-card.wrong {
+    background: #fee2e2;
+    border-color: var(--danger);
+    color: #991b1b;
+    animation: shake 0.4s;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+}
+
+/* Fill Blank Styles */
+.blank-box {
+    display: inline-block;
+    min-width: 60px;
+    height: 30px;
+    border-bottom: 2px solid #94a3b8;
+    margin: 0 5px;
+    vertical-align: bottom;
+    color: var(--primary);
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.blank-box:hover {
+    border-bottom-color: var(--primary);
+}
+
+.blank-box.filled {
+    border-bottom-color: var(--primary);
+    border-bottom-style: solid;
+}
+
+.fb-pill {
+    padding: 10px 20px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 999px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    font-weight: 600;
+    color: #475569;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: all 0.2s;
+}
+
+.fb-pill:hover:not(:disabled) {
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.fb-pill.used {
+    background: #f1f5f9;
+    border-color: #e2e8f0;
+    color: #cbd5e1;
+    box-shadow: none;
+    pointer-events: none;
+}
+
+.vocab-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 14px;
+    border-bottom: 1px solid #f1f5f9;
+    align-items: center;
+}
+
+.level-dot {
+    height: 8px;
+    width: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+/* Dictionary Popup - Desktop: floating tooltip */
+#dict-popup {
+    position: absolute;
+    z-index: 9999;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    border-radius: 16px;
+    width: 320px;
+    font-size: 14px;
+    display: none;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease;
+    opacity: 0;
+    transform: translateY(-4px);
+    overflow: hidden;
+}
+
+#dict-popup.active {
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+#dict-header {
+    padding: 16px 16px 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    background: #fafafa;
+    position: relative;
+}
+
+#dict-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+#dict-word {
+    font-weight: 800;
+    font-size: 18px;
+    color: var(--primary);
+    text-transform: capitalize;
+}
+
+#dict-audio-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+    transition: background 0.2s;
+}
+
+#dict-audio-btn:hover {
+    background: #e0e7ff;
+}
+
+#dict-phonetic {
+    color: #64748b;
+    font-size: 13px;
+    margin: 0;
+    font-style: italic;
+}
+
+#dict-meaning {
+    padding: 16px;
+    color: #333;
+    max-height: 250px;
+    overflow-y: auto;
+    line-height: 1.5;
+    font-size: 14px;
+}
+
+.dict-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 12px 0;
+}
+
+#dict-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #f1f5f9;
+    background: #fff;
+    display: flex;
+    justify-content: center;
+}
+
+#dict-save-btn {
+    width: 100%;
+    padding: 10px 16px;
+    border-radius: 9999px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+#dict-save-btn:hover {
+    background: #4338ca;
+}
+
+#dict-save-btn:active {
+    transform: scale(0.98);
+}
+
+#dict-save-btn:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+}
+
+.loader {
+    display: inline-block;
+    font-size: 13px;
+    color: #666;
+}
+
+/* Backdrop cho mobile bottom sheet */
+#dict-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: 99998;
+}
+
+#dict-backdrop.active {
+    display: block;
+}
+
+/* Dictionary Popup - Mobile: bottom sheet (tránh bị thanh đen hệ thống Android đè) */
+@media (max-width: 768px) {
+    #dict-popup {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        top: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 24px 24px 0 0;
+        box-shadow: 0 -4px 30px rgba(0, 0, 0, 0.18);
+        transform: translateY(100%);
+        opacity: 1;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 99999;
+        padding: 0;
+    }
+
+    #dict-popup.active {
+        transform: translateY(0) !important;
+        display: flex;
+    }
+
+    #dict-header {
+        padding: 24px 20px 16px 20px;
+    }
+
+    #dict-header::before {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 4px;
+        background: #cbd5e1;
+        border-radius: 2px;
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    #dict-word {
+        font-size: 22px;
+    }
+
+    #dict-phonetic {
+        font-size: 15px;
+    }
+
+    #dict-meaning {
+        font-size: 16px;
+        padding: 16px 20px;
+        max-height: 40vh;
+    }
+
+    #dict-footer {
+        padding: 16px 20px 24px 20px;
+    }
+}
