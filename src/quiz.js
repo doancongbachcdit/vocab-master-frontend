@@ -409,6 +409,14 @@ export function handleMatchClick(card, id, type, index) {
     const qData = AppState.quizHistory[AppState.historyIndex];
     if (qData.isAnswered || card.classList.contains('matched')) return;
 
+    // PHÁT AUDIO NGAY LẬP TỨC KHI CHẠM (Không delay)
+    // Dù là thẻ từ hay thẻ nghĩa, đều phát âm thanh của từ đó để phản hồi nhanh
+    const wordObj = AppState.cachedWords.find(w => w.id === id);
+    if (wordObj) {
+        // Dùng rate 1.1 để nghe lẹ và nhạy hơn trong trò chơi nối từ
+        speakText(wordObj.w, wordObj.l, "", 1.1); 
+    }
+
     // Nếu bấm lại thẻ cũ thì bỏ chọn
     if (qData.selectedPair && qData.selectedPair.index == index) {
         qData.selectedPair = null;
@@ -428,8 +436,7 @@ export function handleMatchClick(card, id, type, index) {
             qData.matchedIds.push(id);
             qData.selectedPair = null;
             
-            const wordObj = AppState.cachedWords.find(w => w.id === id);
-            if (wordObj) speakText(wordObj.w, wordObj.l);
+            // (Đã phát audio ở đầu hàm nên không cần gọi lại ở đây nữa)
             
             // Kiểm tra xem đã hết chưa
             const totalPairs = qData.pairs.length / 2;

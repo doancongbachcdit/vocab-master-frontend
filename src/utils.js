@@ -1,48 +1,81 @@
+// Cache để lưu giọng đọc đã chọn, tránh tìm kiếm lặp lại gây delay
+const voiceCache = {
+    'EN': null,
+    'CN': null
+};
+
 // Hàm đọc âm thanh
-export function speakText(word, lang, example = "", rate = 0.9) {
+export function speakText(word, lang, example = "", rate = 1.0) {
     if (!('speechSynthesis' in window)) return;
+    
+    // Cancel ngay lập tức âm thanh cũ để phản hồi nhanh nhất
     window.speechSynthesis.cancel();
 
-    const textToSpeak = example ? `${word}... ${example}` : word;
-    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    // Nếu không có nội dung, thoát sớm (dùng để stop audio)
+    if (!word && !example) return;
 
-    // Lấy danh sách giọng đọc hiện có
     const voices = window.speechSynthesis.getVoices();
-
-    if (lang === 'CN') {
-        utterance.lang = 'zh-CN';
-        // Tìm giọng Trung Quốc chất lượng cao (ưu tiên Google hoặc Microsoft)
-        const cnVoice = voices.find(v => v.lang === 'zh-CN' && (v.name.includes("Google") || v.name.includes("Microsoft")));
-        if (cnVoice) utterance.voice = cnVoice;
-    } else {
-        utterance.lang = 'en-US';
-        // Ưu tiên các giọng "Natural" (trên Edge) hoặc "Google" (trên Chrome)
-        // Những giọng này nghe sẽ "người" hơn và hoàn toàn miễn phí
-        const preferredVoices = [
-            "Microsoft Aria Online", // Giọng nữ rất hay của Edge
-            "Google US English",      // Giọng chuẩn của Chrome
-            "Microsoft Guy Online",   // Giọng nam hay của Edge
-            "English (United States)"
-        ];
-
+    
+    const getPreferredVoice = (language) => {
+        if (voiceCache[language]) return voiceCache[language];
+        
         let selectedVoice = null;
-        for (const name of preferredVoices) {
-            selectedVoice = voices.find(v => v.name.includes(name));
-            if (selectedVoice) break;
-        }
-
-        if (!selectedVoice) {
-            selectedVoice = voices.find(v => v.lang.includes("en-US") || v.lang.includes("en_US"));
+        if (language === 'CN') {
+            selectedVoice = voices.find(v => v.lang === 'zh-CN' && (v.name.includes("Google") || v.name.includes("Microsoft")));
+        } else {
+            // Ưu tiên các giọng Anh-Anh (UK) chất lượng cao
+            const preferredNames = [
+                "Microsoft Libby Online",  // Giọng nữ UK rất hay của Edge
+                "Google UK English Female", // Giọng nữ UK chuẩn của Chrome
+                "Microsoft Sonia Online",  // Giọng nữ UK khác của Edge
+                "Google UK English Male",   // Giọng nam UK của Chrome
+                "English (United Kingdom)"
+            ];
+            for (const name of preferredNames) {
+                selectedVoice = voices.find(v => v.name.includes(name));
+                if (selectedVoice) break;
+            }
+            if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes("en-GB") || v.lang.includes("en_GB"));
         }
         
-        if (selectedVoice) utterance.voice = selectedVoice;
+        if (selectedVoice) voiceCache[language] = selectedVoice;
+        return selectedVoice;
+    };
+
+    const createUtterance = (text, customRate) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang === 'CN' ? 'zh-CN' : 'en-US';
+        const voice = getPreferredVoice(lang === 'CN' ? 'CN' : 'EN');
+        if (voice) utterance.voice = voice;
+        utterance.rate = customRate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        return utterance;
+    };
+
+    if (example) {
+        // ... (logic cũ cho câu ví dụ vẫn giữ nguyên vì cần delay giữa từ và câu)
+        const wordUtterance = createUtterance(word, 0.8);
+        const exUtterance = createUtterance(example, rate);
+        window.speechSynthesis.speak(wordUtterance);
+        wordUtterance.onend = () => {
+            setTimeout(() => {
+                window.speechSynthesis.speak(exUtterance);
+            }, 400);
+        };
+    } else {
+        // Đọc từ đơn: PHÁT NGAY LẬP TỨC
+        const wordOnlyUtterance = createUtterance(word, rate);
+        window.speechSynthesis.speak(wordOnlyUtterance);
     }
+}
 
-    utterance.rate = rate; // Tốc độ truyền vào (mặc định 0.9)
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    window.speechSynthesis.speak(utterance);
+// Lắng nghe sự kiện voice changed để cập nhật cache khi browser load xong voices
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+    window.speechSynthesis.onvoiceschanged = () => {
+        voiceCache.EN = null;
+        voiceCache.CN = null;
+    };
 }
 
 
