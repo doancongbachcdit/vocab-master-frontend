@@ -320,11 +320,22 @@ async function loadRemainingDataInBackground(startPage, limit) {
     }
 }
 
-// Hàm helper gộp từ vựng không trùng lặp ID
+// Hàm helper gộp từ vựng không trùng lặp ID (Smart UPSERT)
 function mergeWords(newWords) {
-    const existingIds = new Set(AppState.cachedWords.map(w => w.id));
-    const uniqueNewOnes = newWords.filter(nw => !existingIds.has(nw.id));
-    AppState.cachedWords.push(...uniqueNewOnes);
+    if (!Array.isArray(newWords)) return;
+    
+    // Sử dụng Map để vừa lọc trùng vừa cập nhật dữ liệu mới nhất
+    const map = new Map();
+    // Đưa các từ hiện tại vào map
+    AppState.cachedWords.forEach(w => map.set(w.id, w));
+    
+    // Gộp từ mới vào (nếu trùng ID sẽ ghi đè bản mới nhất)
+    newWords.forEach(nw => {
+        if (nw && nw.id) map.set(nw.id, nw);
+    });
+    
+    // Cập nhật lại AppState.cachedWords
+    AppState.cachedWords = Array.from(map.values());
 }
 
 
@@ -362,7 +373,7 @@ async function addWord() {
         document.getElementById('addStatus').innerText = "Đang lưu vào máy chủ...";
 
         const savedItem = await addWordToBackend(newItem);
-        AppState.cachedWords.unshift(savedItem);
+        mergeWords([savedItem]);
 
         ['inpWord', 'inpMeaning', 'inpPhonetic', 'inpPrefix', 'inpRoot', 'inpSuffix', 'inpExample'].forEach(id => {
             const el = document.getElementById(id);
