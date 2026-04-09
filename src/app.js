@@ -258,32 +258,36 @@ onAuthStateChanged(auth, async (user) => {
 
 // 5. DATABASE SQL SERVER
 async function loadDataFromCloud() {
+    if (AppState.isLoading) return; // Chặn nếu đang tải để tránh nhân đôi dữ liệu
+    AppState.isLoading = true;
+
     showLoader("⏳ Đang tải dữ liệu từ máy chủ...");
     document.getElementById('reviewStatus').innerHTML = "⏳ Đang kết nối CSDL...";
     try {
         AppState.cachedWords = []; // Reset kho từ cục bộ
-        const limit = 50; // Giảm từ 500 xuống 50 để tải trang đầu nhanh gọn
+        const limit = 50; 
 
-        // 1. TẢI NGAY TRANG ĐẦU TIÊN VÀ HIỂN THỊ LUÔN (CHO TRẢI NGHIỆM MƯỢT TRONG TÍCH TẮC)
         document.getElementById('reviewStatus').innerHTML = `⏳ Đang tải ${limit} từ đầu tiên...`;
         const firstPageData = await fetchAllWords(AppState.currentUser.uid, 1, limit);
-        AppState.cachedWords.push(...firstPageData);
         
-        // Cập nhật giao diện LUÔN CHO NÓNG!
+        // Gộp dữ liệu đảm bảo không trùng IDs
+        mergeWords(firstPageData);
+        
         updateSRSStatus();
         if (document.getElementById('list').classList.contains('active')) renderList();
         if (document.getElementById('quiz').classList.contains('active')) resetQuiz();
-        hideLoader(); // Tắt loader ngay sau khi xong trang 1 để không gián đoạn
+        hideLoader(); 
         
-        // 2. NẾU CÒN DỮ LIỆU THÌ TẢI NGẦM TRONG BACKGROUND (BACKGROUND FETCHING MƯỢT MÀ)
         if (firstPageData.length === limit) {
-             // Không xài await để nó tự chạy độc lập khỏi luồng chính
              loadRemainingDataInBackground(2, limit);
         } else {
              document.getElementById('reviewStatus').innerHTML = `✅ Đã tải xong dữ liệu!`;
+             AppState.isLoading = false; // Kết thúc tải
         }
     } catch (error) {
-        alert("Lỗi tải dữ liệu: " + error.message);
+        console.error("Lỗi loadDataFromCloud:", error);
+        document.getElementById('reviewStatus').innerHTML = "⚠️ Lỗi tải dữ liệu!";
+        AppState.isLoading = false;
         hideLoader();
     }
 }
@@ -296,7 +300,8 @@ async function loadRemainingDataInBackground(startPage, limit) {
         while (keepFetching) {
             document.getElementById('reviewStatus').innerHTML = `🔄 Đang tải ngầm trang ${currPage}...`;
             const pageData = await fetchAllWords(AppState.currentUser.uid, currPage, limit);
-            AppState.cachedWords.push(...pageData);
+            
+            mergeWords(pageData);
             
             if (pageData.length < limit) {
                 keepFetching = false;
@@ -305,13 +310,21 @@ async function loadRemainingDataInBackground(startPage, limit) {
                 currPage++;
             }
         }
-        // Cập nhật nhẹ lại số lượng từ dưới nền
         updateSRSStatus();
         if (document.getElementById('list').classList.contains('active')) renderList();
     } catch(err) {
         console.error("Lỗi tải ngầm dữ liệu:", err);
         document.getElementById('reviewStatus').innerHTML = "⚠️ Lỗi tải ngầm một số từ!";
+    } finally {
+        AppState.isLoading = false;
     }
+}
+
+// Hàm helper gộp từ vựng không trùng lặp ID
+function mergeWords(newWords) {
+    const existingIds = new Set(AppState.cachedWords.map(w => w.id));
+    const uniqueNewOnes = newWords.filter(nw => !existingIds.has(nw.id));
+    AppState.cachedWords.push(...uniqueNewOnes);
 }
 
 

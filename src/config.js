@@ -11,6 +11,7 @@ export const AppState = {
     quizHistory: [],
     historyIndex: -1,
     isCramMode: false,
+    isLoading: false,
     currentQuizItem: null
 };
 
@@ -22,5 +23,6 @@ export function resetAppState() {
     AppState.quizHistory = [];
     AppState.historyIndex = -1;
     AppState.isCramMode = false;
+    AppState.isLoading = false;
     AppState.currentQuizItem = null;
 }

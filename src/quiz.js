@@ -9,7 +9,13 @@ export function updateSRSStatus() {
     if (!AppState.currentUser) return;
     const now = Date.now();
     const filter = document.getElementById('quizFilter').value;
-    let pool = filter === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === filter);
+    
+    // Đảm bảo pool không chứa từ trùng lặp ID (De-duplication safety layer)
+    const uniqueMap = new Map();
+    AppState.cachedWords.forEach(w => uniqueMap.set(w.id, w));
+    const uniqueWords = Array.from(uniqueMap.values());
+
+    let pool = filter === 'ALL' ? uniqueWords : uniqueWords.filter(w => w.l === filter);
 
     AppState.dueWords = pool.filter(w => (w.nextReview || 0) <= now).sort((a, b) => a.nextReview - b.nextReview);
     document.getElementById('reviewStatus').innerHTML = AppState.dueWords.length > 0
@@ -282,12 +288,17 @@ function renderFillBlank(q) {
     
     // Câu đục lỗ
     const sentenceEl = document.getElementById('fbSentence');
-    const wordRegex = new RegExp(`\\b${q.correct.w}\\b`, 'gi');
+    // Với Tiếng Trung (CN), không dùng \b (word boundary) vì không có dấu cách
+    const pattern = q.correct.l === 'CN' ? q.correct.w : `\\b${q.correct.w}\\b`;
+    const wordRegex = new RegExp(pattern, 'gi');
+
     const displaySentence = q.correct.ex.replace(wordRegex, (match) => {
         const text = q.isAnswered ? match : (q.selectedWord || '');
         return `<span class="blank-box ${q.isAnswered ? 'filled' : ''}">${text}</span>`;
     });
-    sentenceEl.innerHTML = `"${displaySentence}"<br><small style="color:#64748b; font-weight:normal; font-style:italic">(${q.correct.m})</small>`;
+    // Tạm thời comment lại phần hiển thị nghĩa theo yêu cầu
+    // sentenceEl.innerHTML = `"${displaySentence}"<br><small style="color:#64748b; font-weight:normal; font-style:italic">(${q.correct.m})</small>`;
+    sentenceEl.innerHTML = `"${displaySentence}"`;
 
     // Options
     const optContainer = document.getElementById('fbOptions');
