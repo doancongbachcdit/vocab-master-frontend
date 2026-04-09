@@ -267,15 +267,90 @@
     <div id="dict-backdrop"></div>
     <div id="dict-popup">
         <div id="dict-header">
-            <div id="dict-title-wrapper">
-                <span id="dict-word"></span>
-                <button id="dict-audio-btn" style="display:none;" title="Nghe phát âm">🔊</button>
+            <div id="dict-toolbar">
+                <div class="toolbar-left">
+                    <button id="dict-audio-btn" class="tool-btn" title="Phát âm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        </svg>
+                    </button>
+                    <button id="dict-favorite-btn" class="tool-btn" title="Yêu thích">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.27 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="toolbar-right">
+                    <button id="dict-theme-btn" class="tool-btn" title="Đổi giao diện">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
+                    </button>
+                    <button id="dict-settings-btn" class="tool-btn" title="Cài đặt">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                    </button>
+                    <button id="dict-close-btn" class="tool-btn" title="Đóng">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
             </div>
-            <div id="dict-phonetic"></div>
+            <div id="dict-header-content">
+                <div id="dict-phonetic"></div>
+                <div id="dict-word"></div>
+            </div>
         </div>
         <div id="dict-meaning"></div>
-        <div id="dict-footer">
+    </div>    <div id="dict-footer">
             <!-- <button id="dict-save-btn">+ Lưu từ này</button> -->
+        </div>
+    </div>
+
+    <!-- AI Chatbox Assistant -->
+    <div id="ai-chat-bubble" title="Hỏi trợ lý AI">
+        <span id="chat-badge" style="display:none">1</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    </div>
+
+    <div id="ai-chat-window">
+        <div id="ai-chat-header">
+            <div style="display:flex; align-items:center; gap:10px">
+                <div style="position:relative">
+                    <div style="width:36px; height:36px; background:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-weight:bold">AI</div>
+                    <div style="width:10px; height:10px; background:#22c55e; border:2px solid white; border-radius:50%; position:absolute; bottom:0; right:0"></div>
+                </div>
+                <div>
+                    <div style="font-weight:bold; font-size:0.95em">Trợ lý Vocab Pro</div>
+                    <div style="font-size:0.75em; color:rgba(255,255,255,0.8)">Sẵn sàng hỗ trợ bạn</div>
+                </div>
+            </div>
+            <button id="ai-chat-close" style="background:none; border:none; color:white; cursor:pointer; padding:5px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+        </div>
+        
+        <div id="ai-chat-messages">
+            <div class="ai-msg">
+                Chào Bách! Tôi là trợ lý AI của bạn. Bạn muốn tôi giải thích ngữ pháp hay dịch thuật gì không? 😊
+            </div>
+        </div>
+
+        <div id="ai-chat-quick-actions">
+            <button class="qa-btn" id="qa-guide" style="background:#f1f5f9; font-weight:bold">❓ Hướng dẫn</button>
+            <button class="qa-btn" data-prompt="Giải thích ngữ pháp của từ đang học">📖 Giải thích</button>
+            <button class="qa-btn" data-prompt="Dịch câu ví dụ này sang nghĩa tự nhiên hơn">🌐 Dịch thuật</button>
+            <button class="qa-btn" data-prompt="Lấy thêm 3 ví dụ thực tế khác">💡 Thêm ví dụ</button>
+        </div>
+
+        <div id="ai-chat-input-area">
+            <textarea id="ai-chat-input" placeholder="Hỏi tôi bất cứ thứ gì..." rows="1"></textarea>
+            <button id="ai-chat-send">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
         </div>
     </div>
 

@@ -469,9 +469,20 @@ export function handleMatchClick(card, id, type, index) {
             }
             renderQuestion(qData);
         } else {
-            // SAI
+            // SAI -> Đưa vào danh sách ôn tập (Phạt SRS)
             card.classList.add('wrong');
             first.el.classList.add('wrong');
+
+            if (!AppState.isCramMode) {
+                [first.id, id].forEach(wordId => {
+                    const word = AppState.cachedWords.find(w => w.id === wordId);
+                    if (word) {
+                        let oldEF = word.easeFactor || 2.5;
+                        updateWordSRS(wordId, 0, Date.now() + 86400000, Math.max(1.3, oldEF - 0.2), 1);
+                    }
+                });
+            }
+
             qData.selectedPair = null;
             setTimeout(() => {
                 renderQuestion(qData);
