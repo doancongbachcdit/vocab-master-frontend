@@ -5,6 +5,203 @@ import { generateAIQuestions } from './ai-services.js';
 import { updateWordSRSToBackend } from './api.js';
 import { renderList } from './ui.js';
 
+function getDayKey(d = new Date()) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function resetStudySessionIfNeeded(force = false) {
+    const todayKey = getDayKey();
+    if (force || AppState.sessionDayKey !== todayKey) {
+        AppState.sessionDayKey = todayKey;
+        AppState.sessionDoneCount = 0;
+        AppState.sessionQueue = [];
+        AppState.sessionSeenIds = new Set();
+    }
+}
+
+function computePriority(word, now) {
+    // Higher = more urgent
+    const nextReview = word.nextReview || 0;
+    const overdueMs = Math.max(0, now - nextReview);
+    const overdueDays = Math.min(overdueMs / 86400000, 60); // cap for stability
+
+    const level = word.level || 0;
+    const ease = word.easeFactor !== undefined ? word.easeFactor : 2.5;
+    const interval = word.interval !== undefined ? word.interval : 0;
+
+    // Weight design:
+    // - heavily favor overdue
+    // - favor low level & low ease
+    // - slight favor for short intervals (weaker memory)
+    const overdueScore = overdueDays * 3.0;
+    const levelScore = (5 - Math.min(level, 5)) * 1.5;
+    const easeScore = (2.6 - Math.min(Math.max(ease, 1.3), 2.6)) * 4.0; // ease 1.3 => big boost
+    const intervalScore = Math.max(0, (10 - Math.min(interval, 10))) * 0.2;
+
+    // Avoid infinite loops with non-finite values
+    const score = overdueScore + levelScore + easeScore + intervalScore;
+    return Number.isFinite(score) ? Math.max(0.1, score) : 1.0;
+}
+
+function weightedSampleNoReplace(items, weights, k) {
+    const chosen = [];
+    const localItems = items.slice();
+    const localWeights = weights.slice();
+
+    const total = () => localWeights.reduce((s, w) => s + w, 0);
+    const pickIndex = (r) => {
+        let acc = 0;
+        for (let i = 0; i < localWeights.length; i++) {
+            acc += localWeights[i];
+            if (r <= acc) return i;
+        }
+        return localWeights.length - 1;
+    };
+
+    while (chosen.length < k && localItems.length > 0) {
+        const t = total();
+        if (t <= 0) break;
+        const r = Math.random() * t;
+        const idx = pickIndex(r);
+        chosen.push(localItems[idx]);
+        localItems.splice(idx, 1);
+        localWeights.splice(idx, 1);
+    }
+    return chosen;
+}
+
+function escapeRegex(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildEnglishVariants(base) {
+    const w = String(base || '').trim();
+    if (!w) return [];
+    // Keep it lightweight & safe: cover common inflections only.
+    const variants = new Set();
+    variants.add(w);
+
+    // Possessive / contraction-ish
+    variants.add(`${w}'s`);
+
+    const lower = w.toLowerCase();
+
+    // Plurals: s / es / ies
+    variants.add(`${w}s`);
+
+    const endsWithEs = /(s|x|z|ch|sh|o)$/i.test(lower);
+    if (endsWithEs) variants.add(`${w}es`);
+
+    const yToIes = /[^aeiou]y$/i.test(lower);
+    if (yToIes) {
+        variants.add(`${w.slice(0, -1)}ies`);
+    }
+
+    // Past: ed / d / ied
+    if (lower.endsWith('e')) {
+        variants.add(`${w}d`);
+    } else if (yToIes) {
+        variants.add(`${w.slice(0, -1)}ied`);
+    } else {
+        variants.add(`${w}ed`);
+    }
+
+    // Present participle: ing (basic rules)
+    if (lower.endsWith('ie')) {
+        variants.add(`${w.slice(0, -2)}ying`); // die -> dying
+    } else if (lower.endsWith('e') && !/(ee|ye|oe)$/i.test(lower)) {
+        variants.add(`${w.slice(0, -1)}ing`); // make -> making
+    } else {
+        variants.add(`${w}ing`);
+    }
+
+    return Array.from(variants);
+}
+
+function getFillBlankRegex(wordObj) {
+    const w = (wordObj?.w || '').trim();
+    if (!w) return null;
+    if (wordObj.l === 'CN') {
+        return new RegExp(escapeRegex(w), 'g');
+    }
+    const variants = buildEnglishVariants(w).map(escapeRegex);
+    // \b ensures whole-word match; allow apostrophe inside token (e.g., word's)
+    return new RegExp(`\\b(?:${variants.join('|')})\\b`, 'gi');
+}
+
+function exampleContainsWord(wordObj) {
+    const w = (wordObj?.w || '').trim();
+    const ex = (wordObj?.ex || '').trim();
+    if (!w || !ex) return false;
+    if (wordObj.l === 'CN') {
+        return ex.includes(w);
+    }
+    const rx = getFillBlankRegex(wordObj);
+    return rx ? rx.test(ex) : false;
+}
+
+function buildSessionQueueFromDue() {
+    resetStudySessionIfNeeded(false);
+    if (!AppState.currentUser) return;
+    if (AppState.sessionQueue.length > 0) return;
+
+    const now = Date.now();
+    const due = AppState.dueWords || [];
+    if (due.length === 0) return;
+
+    const limit = AppState.sessionLimit || 30;
+    const weights = due.map(w => computePriority(w, now));
+    const picked = weightedSampleNoReplace(due, weights, Math.min(limit, due.length));
+    AppState.sessionQueue = picked.map(w => w.id);
+}
+
+function getNextSessionWordId(preferredLang = null, requireExample = false) {
+    resetStudySessionIfNeeded(false);
+    buildSessionQueueFromDue();
+    if (!AppState.sessionQueue || AppState.sessionQueue.length === 0) return null;
+
+    const candidates = [];
+    for (const id of AppState.sessionQueue) {
+        if (AppState.sessionSeenIds.has(id)) continue;
+        const w = AppState.cachedWords.find(x => x.id === id);
+        if (!w) continue;
+        if (preferredLang && w.l !== preferredLang) continue;
+        if (requireExample && (!w.ex || w.ex.trim().length === 0)) continue;
+        candidates.push(w);
+    }
+    if (candidates.length === 0) return null;
+
+    const now = Date.now();
+    const weights = candidates.map(w => computePriority(w, now));
+    const picked = weightedSampleNoReplace(candidates, weights, 1)[0];
+    return picked ? picked.id : null;
+}
+
+function getSessionWords({ preferredLang = null, requireExample = false } = {}) {
+    resetStudySessionIfNeeded(false);
+    buildSessionQueueFromDue();
+    const out = [];
+    for (const id of AppState.sessionQueue || []) {
+        if (AppState.sessionSeenIds.has(id)) continue;
+        const w = AppState.cachedWords.find(x => x.id === id);
+        if (!w) continue;
+        if (preferredLang && w.l !== preferredLang) continue;
+        if (requireExample && (!w.ex || w.ex.trim().length === 0)) continue;
+        out.push(w);
+    }
+    return out;
+}
+
+// Exported for Dictation to align selection logic
+export function getNextStudyItem({ preferredLang = null, requireExample = false } = {}) {
+    const id = getNextSessionWordId(preferredLang, requireExample);
+    if (id) return AppState.cachedWords.find(w => w.id === id) || null;
+    return null;
+}
+
 export function updateSRSStatus() {
     if (!AppState.currentUser) return;
     const now = Date.now();
@@ -18,9 +215,14 @@ export function updateSRSStatus() {
     let pool = filter === 'ALL' ? uniqueWords : uniqueWords.filter(w => w.l === filter);
 
     AppState.dueWords = pool.filter(w => (w.nextReview || 0) <= now).sort((a, b) => a.nextReview - b.nextReview);
-    document.getElementById('reviewStatus').innerHTML = AppState.dueWords.length > 0
-        ? `Cần ôn: <b class="due-badge">${AppState.dueWords.length}</b> từ`
-        : `<span style="color:var(--success)">Đã học xong!</span>`;
+    resetStudySessionIfNeeded(false);
+    const sessionLimit = AppState.sessionLimit || 30;
+    const sessionDone = AppState.sessionDoneCount || 0;
+    const dueCount = AppState.dueWords.length;
+    const quotaText = `Hôm nay: <b>${Math.min(sessionDone, sessionLimit)}/${sessionLimit}</b>`;
+    const dueText = dueCount > 0 ? `Cần ôn: <b class="due-badge">${dueCount}</b> từ` : `<span style="color:var(--success)">Đã học xong!</span>`;
+    const carryText = dueCount > sessionLimit ? ` <span style="color:#64748b">(còn lại dời sang phiên sau)</span>` : '';
+    document.getElementById('reviewStatus').innerHTML = `${dueText} · ${quotaText}${carryText}`;
 
     const learnedCount = AppState.cachedWords.filter(w => (w.level || 0) > 0).length;
     const percent = Math.min((learnedCount / 300) * 100, 100);
@@ -38,6 +240,7 @@ export function resetQuiz() {
     AppState.quizHistory = [];
     AppState.historyIndex = -1;
     AppState.isCramMode = false;
+    resetStudySessionIfNeeded(true);
     nextQuestion();
 }
 
@@ -52,6 +255,7 @@ export function nextQuestion() {
         AppState.historyIndex++; renderQuestion(AppState.quizHistory[AppState.historyIndex]); return;
     }
     updateSRSStatus();
+    buildSessionQueueFromDue();
     
     const currentFilter = document.getElementById('quizFilter').value;
     const filteredPool = currentFilter === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === currentFilter);
@@ -70,17 +274,27 @@ export function nextQuestion() {
 
     if (quizType === 'match_words') {
         // Ưu tiên lấy từ đến hạn (dueWords) trong pool đã lọc
-        let sourcePool = filteredDue.length >= 4 ? filteredDue : filteredPool;
-        
-        // Match Words thì luôn cùng ngôn ngữ (đã được filteredPool đảm bảo nếu Filter != ALL)
-        // Nếu Filter == ALL, ta vẫn nên lọc theo 1 ngôn ngữ nhất định cho vòng này để tránh lộn xộn
-        const firstWord = sourcePool[Math.floor(Math.random() * sourcePool.length)];
-        const finalPool = sourcePool.filter(w => w.l === firstWord.l);
-        
-        // Fallback nếu không đủ 4 từ cùng loại trong sourcePool
-        const backupPool = finalPool.length >= 4 ? finalPool : AppState.cachedWords.filter(w => w.l === firstWord.l);
+        const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
+        const sessionPool = getSessionWords({ preferredLang, requireExample: false });
+        const sourcePool = (filteredDue.length >= 4 ? filteredDue : filteredPool);
 
-        const targetWords = backupPool.sort(() => 0.5 - Math.random()).slice(0, 4);
+        // Choose a language for this round (avoid mixing when ALL)
+        let langForRound = preferredLang;
+        if (!langForRound) {
+            const seed = (sessionPool.length > 0 ? sessionPool : sourcePool);
+            const firstWord = seed[Math.floor(Math.random() * seed.length)];
+            langForRound = firstWord?.l || 'EN';
+        }
+
+        // Prefer session words of this language; fallback to due/pool
+        let candidates = sessionPool.filter(w => w.l === langForRound);
+        if (candidates.length < 4) {
+            const dueSameLang = filteredDue.filter(w => w.l === langForRound);
+            const poolSameLang = filteredPool.filter(w => w.l === langForRound);
+            candidates = (dueSameLang.length >= 4 ? dueSameLang : poolSameLang);
+        }
+
+        const targetWords = candidates.sort(() => 0.5 - Math.random()).slice(0, 4);
         
         // Tách riêng 2 bên: Trái (Từ gốc), Phải (Nghĩa) và xáo trộn độc lập
         const leftSide = targetWords.map(w => ({ id: w.id, text: w.w, type: 'word' })).sort(() => 0.5 - Math.random());
@@ -101,7 +315,30 @@ export function nextQuestion() {
             isAnswered: false
         };
     } else if (quizType === 'fill_blank') {
-        const questionItem = wordsWithEx[Math.floor(Math.random() * wordsWithEx.length)];
+        let questionItem = null;
+        const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
+        const pickedId = getNextSessionWordId(preferredLang, true);
+        if (pickedId) questionItem = AppState.cachedWords.find(w => w.id === pickedId) || null;
+        // Ensure the example actually contains the target word; otherwise blank can't be rendered
+        if (questionItem && !exampleContainsWord(questionItem)) questionItem = null;
+
+        if (!questionItem) {
+            const eligible = wordsWithEx.filter(exampleContainsWord);
+            if (eligible.length === 0) {
+                // No eligible fill-blank items -> fallback to multiple choice behavior
+                const pool = filteredPool.length >= 4 ? filteredPool : AppState.cachedWords;
+                const fallbackItem = pool[Math.floor(Math.random() * pool.length)];
+                qData = { type: 'multiple_choice', correct: fallbackItem, options: [fallbackItem, ...pool.filter(x => x.id !== fallbackItem.id).sort(() => 0.5 - Math.random()).slice(0, 3)].sort(() => 0.5 - Math.random()), selectedId: null, isAnswered: false };
+                AppState.quizHistory.push(qData);
+                AppState.historyIndex++;
+                document.getElementById('doneArea').style.display = 'none';
+                document.getElementById('quizArea').style.display = 'block';
+                document.getElementById('emptyArea').style.display = 'none';
+                renderQuestion(qData);
+                return;
+            }
+            questionItem = eligible[Math.floor(Math.random() * eligible.length)];
+        }
         
         // Tạo distractors - CHỈ lấy từ CÙNG NGÔN NGỮ trong filteredPool
         const distractors = filteredPool
@@ -124,8 +361,14 @@ export function nextQuestion() {
         let questionItem;
         if (AppState.dueWords.length > 0) {
             AppState.isCramMode = false;
-            const topN = AppState.dueWords.slice(0, 10);
-            questionItem = topN[Math.floor(Math.random() * topN.length)];
+            const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
+            const pickedId = getNextSessionWordId(preferredLang, false);
+            if (pickedId) {
+                questionItem = AppState.cachedWords.find(w => w.id === pickedId);
+            } else {
+                const topN = AppState.dueWords.slice(0, 10);
+                questionItem = topN[Math.floor(Math.random() * topN.length)];
+            }
         } else {
             if (!AppState.isCramMode) {
                 document.getElementById('quizArea').style.display = 'none';
@@ -288,11 +531,21 @@ function renderFillBlank(q) {
     
     // Câu đục lỗ
     const sentenceEl = document.getElementById('fbSentence');
-    // Với Tiếng Trung (CN), không dùng \b (word boundary) vì không có dấu cách
-    const pattern = q.correct.l === 'CN' ? q.correct.w : `\\b${q.correct.w}\\b`;
-    const wordRegex = new RegExp(pattern, 'gi');
+    const wordRegex = getFillBlankRegex(q.correct);
+    if (!wordRegex) {
+        // Should never happen, but avoid runtime errors
+        sentenceEl.innerHTML = `"${q.correct.ex || ''}"`;
+        return;
+    }
 
-    const displaySentence = q.correct.ex.replace(wordRegex, (match) => {
+    const hasMatch = wordRegex.test(q.correct.ex);
+    // Reset lastIndex after test() with /g
+    wordRegex.lastIndex = 0;
+
+    // Fallback: if no match, show a clear blank at the start (rare, but avoids “no blank” bug)
+    const baseSentence = hasMatch ? q.correct.ex : `____ ${q.correct.ex}`;
+
+    const displaySentence = baseSentence.replace(wordRegex, (match) => {
         const text = q.isAnswered ? match : (q.selectedWord || '');
         return `<span class="blank-box ${q.isAnswered ? 'filled' : ''}">${text}</span>`;
     });
@@ -394,6 +647,15 @@ export async function handleSM2Rating(quality) {
 
     // Gọi updateWordSRS (không dùng await để tránh nghẽn luồng)
     updateWordSRS(word.id, level, nextReview, easeFactor, interval);
+
+    // Count as a completed session item (only for due-mode, not cram)
+    if (!AppState.isCramMode) {
+        resetStudySessionIfNeeded(false);
+        if (!AppState.sessionSeenIds.has(word.id)) {
+            AppState.sessionSeenIds.add(word.id);
+            AppState.sessionDoneCount = (AppState.sessionDoneCount || 0) + 1;
+        }
+    }
 
     // Bỏ khóa nút vì chuyển trang luôn rồi
     nextQuestion(); // Tự động nhảy sang câu sau

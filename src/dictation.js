@@ -1,6 +1,6 @@
 import { AppState } from './config.js';
 import { speakText } from './utils.js';
-import { updateWordSRS } from './quiz.js';
+import { getNextStudyItem, updateWordSRS, updateSRSStatus } from './quiz.js';
 
 let currentDictationItem = null;
 const synth = window.speechSynthesis;
@@ -13,6 +13,9 @@ export function loadRandomDictation() {
         dictationArea.innerHTML = `<p style="text-align:center; padding: 20px;">Bạn chưa có từ vựng nào trong kho dữ liệu. Vui lòng sang tab Dữ Liệu để thêm!</p>`;
         return;
     }
+
+    // Ensure dueWords/session are refreshed
+    updateSRSStatus();
 
     // Luôn render Dropdown Lọc Ngôn Ngữ nếu nó chưa tồn tại trên giao diện Dictation
     let dictationFilterHtml = '';
@@ -30,23 +33,21 @@ export function loadRandomDictation() {
         </div>
     `;
 
-    // Lọc các từ ưu tiên (Due Words) có câu ví dụ (ex) theo Filter
-    let validWords = AppState.dueWords.filter(w => {
-        if (!w.ex || w.ex.trim() === '') return false;
-        if (currentFilterValue !== 'ALL' && w.l !== currentFilterValue) return false;
-        return true;
-    });
+    const preferredLang = currentFilterValue === 'ALL' ? null : currentFilterValue;
+    // Prefer session/due words with examples, aligned with quiz
+    let chosen = getNextStudyItem({ preferredLang, requireExample: true });
 
-    // Nếu hết từ ưu tiên, lấy ngẫu nhiên từ toàn bộ kho từ vựng theo Filter
-    if (validWords.length === 0) {
-        validWords = AppState.cachedWords.filter(w => {
+    // Fallback to any word with example (same as previous behavior)
+    if (!chosen) {
+        const pool = AppState.cachedWords.filter(w => {
             if (!w.ex || w.ex.trim() === '') return false;
-            if (currentFilterValue !== 'ALL' && w.l !== currentFilterValue) return false;
+            if (preferredLang && w.l !== preferredLang) return false;
             return true;
         });
+        chosen = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : null;
     }
 
-    if (validWords.length === 0) {
+    if (!chosen) {
         dictationArea.innerHTML = `
             ${dictationFilterHtml}
             <p style="text-align:center; padding: 20px;">Không tìm thấy câu ví dụ nào khớp với bộ lọc Ngôn Ngữ hiện tại. Hãy chọn ngôn ngữ khác hoặc thêm nội dung mới nhé!</p>
@@ -59,9 +60,7 @@ export function loadRandomDictation() {
         return;
     }
 
-    // Chọn ngẫu nhiên 1 câu
-    const randomIndex = Math.floor(Math.random() * validWords.length);
-    currentDictationItem = validWords[randomIndex];
+    currentDictationItem = chosen;
 
     // Tạo giao diện
     dictationArea.innerHTML = `
@@ -116,9 +115,11 @@ export function loadRandomDictation() {
     document.getElementById("btnCheckDict").addEventListener("click", checkDictationTarget);
     document.getElementById("btnSkipDict").addEventListener("click", loadRandomDictation);
 
-    // Update Text Review số lượng
+    // Update Text Review số lượng (aligned with dueWords)
     const dueCount = AppState.dueWords.filter(w => w.ex && w.ex.trim() !== '' && (currentFilterValue === 'ALL' || w.l === currentFilterValue)).length;
-    document.getElementById("dictReviewStatus").innerHTML = dueCount > 0 ? `Cần nghe: <b class="due-badge">${dueCount}</b> câu` : `<span style="color:var(--success)">Đã luyện nghe xong hôm nay!</span>`;
+    document.getElementById("dictReviewStatus").innerHTML = dueCount > 0
+        ? `Cần nghe: <b class="due-badge">${dueCount}</b> câu`
+        : `<span style="color:var(--success)">Đã luyện nghe xong hôm nay!</span>`;
 
     // Auto focus and play
     setTimeout(() => {
