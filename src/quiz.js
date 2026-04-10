@@ -674,7 +674,7 @@ export async function updateWordSRS(id, newLevel, newNextReview, newEaseFactor, 
 
     // Gửi dữ liệu về backend ngầm
     try {
-        await updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval);
+        await updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval, wordInRam || null);
     } catch (error) { console.error("Lỗi đồng bộ SRS", error); }
 }
 

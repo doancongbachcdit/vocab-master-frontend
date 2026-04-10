@@ -36,20 +36,33 @@ export async function importCSVToBackend(newItems) {
     }
 }
 
-export async function updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval) {
+export async function updateWordSRSToBackend(id, newLevel, newNextReview, newEaseFactor, newInterval, wordSnapshot = null) {
+    const payload = {
+        // Backend PUT often validates core fields; keep original values instead of placeholders.
+        w: wordSnapshot?.w || "",
+        m: wordSnapshot?.m || "",
+        l: wordSnapshot?.l || "EN",
+        p: wordSnapshot?.p || "",
+        prf: wordSnapshot?.prf || "",
+        rt: wordSnapshot?.rt || "",
+        suf: wordSnapshot?.suf || "",
+        ex: wordSnapshot?.ex || "",
+        userId: wordSnapshot?.userId || "",
+        level: newLevel,
+        nextReview: newNextReview,
+        easeFactor: newEaseFactor,
+        interval: newInterval
+    };
+
     const response = await fetch(`${API_BASE_URL}/api/vocab/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            w: "-",
-            m: "-",
-            level: newLevel,
-            nextReview: newNextReview,
-            easeFactor: newEaseFactor,
-            interval: newInterval
-        })
+        body: JSON.stringify(payload)
     });
-    if (!response.ok) throw new Error("Lỗi đồng bộ C#");
+    if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || "Lỗi đồng bộ C#");
+    }
 }
 
 export async function deleteAllWordsFromFirebase(cachedWords) {

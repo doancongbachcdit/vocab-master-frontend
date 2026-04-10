@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let popupOpenedAt = 0;
     const POPUP_CLOSE_COOLDOWN_MS = 500;
     let currentWordData = { word: '', phonetic: '', meaning: '', audioUrl: '', lang: 'EN' };
+    const dictMissCache = new Set();
+    let lastLookup = { text: '', at: 0 };
 
     // --- Toolbar Logic ---
     audioBtn?.addEventListener('click', (e) => {
@@ -99,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function isMobile() { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; }
 
     async function showMobilePopup(text) {
+        if (shouldSkipDuplicateLookup(text)) return;
         popup.style.top = '';
         popup.style.left = '';
         preparePopup(text);
@@ -112,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = selection.toString().trim();
 
         if (text.length > 0 && text.length <= 500) {
+            if (shouldSkipDuplicateLookup(text)) return;
             const range = selection.getRangeAt(0);
             const rect = range.getBoundingClientRect();
             const top = rect.bottom + window.scrollY + 12;
@@ -139,12 +143,37 @@ document.addEventListener('DOMContentLoaded', () => {
         currentWordData = { word: text, phonetic: '', meaning: '', audioUrl: '', lang: 'EN' };
     }
 
+    function shouldSkipDuplicateLookup(text) {
+        const normalized = (text || '').trim().toLowerCase();
+        if (!normalized) return true;
+        const now = Date.now();
+        if (normalized === lastLookup.text && (now - lastLookup.at) < 600) {
+            return true;
+        }
+        lastLookup = { text: normalized, at: now };
+        return false;
+    }
+
+    function isSingleEnglishWord(text) {
+        const clean = (text || '').trim();
+        if (!clean) return false;
+        // Only one token for dictionaryapi, otherwise fall back to translate.
+        if (clean.split(/\s+/).length !== 1) return false;
+        return /^[A-Za-z][A-Za-z\-']*$/.test(clean);
+    }
+
     async function fetchFullDefinition(word) {
-        const isEnglish = /^[a-zA-Z\- '\.]+$/.test(word) && word.split(/\s+/).length <= 3;
+        const normalizedWord = (word || '').trim().toLowerCase();
+        const isEnglish = isSingleEnglishWord(word);
         currentWordData.lang = isEnglish ? 'EN' : 'CN';
 
         if (!isEnglish) {
             popupWord.innerText = word;
+            await renderSimpleTranslation(word);
+            return;
+        }
+
+        if (dictMissCache.has(normalizedWord)) {
             await renderSimpleTranslation(word);
             return;
         }
@@ -157,6 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const dictData = dictRes.ok ? await dictRes.json() : null;
             const transData = transRes.ok ? await transRes.json() : null;
+
+            if (!dictRes.ok) {
+                dictMissCache.add(normalizedWord);
+            }
 
             renderStructuredResult(word, dictData, transData);
         } catch (error) {
