@@ -431,7 +431,7 @@ async function autoFillWord() {
             {
                 "pronunciation": "phiên âm IPA của từ",
                 "meaning": "nghĩa ngắn gọn bằng tiếng Việt",
-                "example": "1 câu ví dụ tiếng Anh chứa từ đó"
+                "example": "1 câu ví dụ tiếng Anh trình độ B1, có ít nhất 1 mệnh đề hoặc cụm từ mở rộng, dài 8-15 từ, không dùng câu quá đơn giản"
             }`;
         } else if (lang === 'CN') {
             // TIẾNG TRUNG: Yêu cầu AI trả ví dụ bằng chữ Hán
