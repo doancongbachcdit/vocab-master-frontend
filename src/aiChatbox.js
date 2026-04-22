@@ -1,5 +1,5 @@
 // src/aiChatbox.js
-import { API_BASE_URL, AppState } from './config.js';
+import { API_BASE_URL } from './config.js';
 
 class AIChatbox {
     constructor() {
@@ -9,20 +9,13 @@ class AIChatbox {
         this.messagesContainer = document.getElementById('ai-chat-messages');
         this.input           = document.getElementById('ai-chat-input');
         this.sendBtn         = document.getElementById('ai-chat-send');
-        this.quickActions    = document.getElementById('ai-chat-quick-actions');
-        this.suggestedRepliesContainer = document.getElementById('ai-suggested-replies');
-        this.contextLabel    = document.getElementById('ai-context-label');
 
-        this.MAX_SELECTION_CONTEXT = 800;
-        this.MAX_HISTORY_CHARS     = 12000;
+        this.MAX_HISTORY_CHARS     = 16000;
         this.TYPEWRITER_SPEED      = 14; // ms per character
 
         this.history      = JSON.parse(localStorage.getItem('ai_chat_history')) || [];
         this.isOpen       = false;
         this.isTyping     = false;
-        this.lastSelection = '';
-        this.lastUserPrompt = '';   // Để regenerate
-        this.lastAIRawText  = '';   // Raw text của response cuối để regenerate
 
         this.init();
     }
@@ -50,37 +43,9 @@ class AIChatbox {
             this.input.style.height = Math.min(this.input.scrollHeight, 90) + 'px';
         });
 
-        // Lưu vùng bôi đen để không mất khi click vào input
-        document.addEventListener('selectionchange', () => {
-            const sel = window.getSelection().toString().trim();
-            if (sel && sel.length > 0) this.lastSelection = sel;
-        });
-
-        // Quick Actions
-        this.quickActions.addEventListener('click', (e) => {
-            if (e.target.id === 'qa-guide')          { this.showTutorial(); return; }
-            if (e.target.id === 'qa-clear-history')  { this.clearHistory(); return; }
-            if (e.target.id === 'qa-copy-last')      { this.copyLastAIMessage(); return; }
-            if (e.target.id === 'qa-regenerate')     { this.regenerateLastResponse(); return; }
-
-            const btn = e.target.closest('.qa-btn');
-            if (btn && btn.dataset.prompt) {
-                this.handleSend(btn.dataset.prompt);
-            }
-        });
-
-        // Lắng nghe tab thay đổi để cập nhật context chip
-        document.getElementById('mainTabs')?.addEventListener('click', () => {
-            setTimeout(() => this.updateContextChip(), 50);
-        });
-
         // Cập nhật context chip khi chatbox mở
         this.renderHistory();
         this.checkInitialBadge();
-        this.updateContextChip();
-
-        // Cập nhật chip định kỳ (khi từ quiz thay đổi)
-        setInterval(() => { if (this.isOpen) this.updateContextChip(); }, 2500);
     }
 
     // ─────────────────────────────────────────
@@ -92,7 +57,6 @@ class AIChatbox {
             this.window.classList.add('active');
             this.input.focus();
             document.getElementById('chat-badge').style.display = 'none';
-            this.updateContextChip();
         } else {
             this.window.classList.remove('active');
         }
@@ -105,83 +69,6 @@ class AIChatbox {
     }
 
     // ─────────────────────────────────────────
-    //  CONTEXT CHIP
-    // ─────────────────────────────────────────
-    updateContextChip() {
-        if (!this.contextLabel) return;
-        const { label } = this.getContextInfo();
-        this.contextLabel.textContent = label;
-    }
-
-    /**
-     * Trả về { label, contextType, contextText } dựa vào trạng thái UI
-     */
-    getContextInfo() {
-        const activeTabEl  = document.querySelector('.tab-btn.active');
-        const activeTabId  = activeTabEl?.dataset?.tab || '';
-        const activeTabTxt = activeTabEl?.innerText?.trim() || 'Không rõ';
-
-        // Quiz: Multiple Choice
-        const modeMultipleChoice = document.getElementById('modeMultipleChoice');
-        if (modeMultipleChoice && modeMultipleChoice.style.display !== 'none') {
-            const qWord    = document.getElementById('qWord')?.innerText;
-            if (qWord && qWord !== '---') {
-                return {
-                    label: `🧠 Quiz: ${qWord}`,
-                    contextType: 'quiz',
-                    word: qWord,
-                };
-            }
-        }
-
-        // Quiz: Fill Blank
-        const modeFillBlank = document.getElementById('modeFillBlank');
-        if (modeFillBlank && modeFillBlank.style.display !== 'none') {
-            const targetWord = AppState.currentQuizItem?.w || '';
-            return {
-                label: targetWord ? `✍️ Điền từ: ${targetWord}` : '✍️ Điền vào chỗ trống',
-                contextType: 'fillblank',
-                word: targetWord,
-            };
-        }
-
-        // Quiz: Match Words
-        const modeMatchWords = document.getElementById('modeMatchWords');
-        if (modeMatchWords && modeMatchWords.style.display !== 'none') {
-            return { label: '🔗 Ghép cặp từ', contextType: 'match', word: '' };
-        }
-
-        // Dictionary Popup
-        const dictPopupActive = document.getElementById('dict-popup')?.classList.contains('active');
-        const dictWord        = document.getElementById('dict-word')?.innerText;
-        if (dictPopupActive && dictWord) {
-            return { label: `📖 Từ điển: ${dictWord}`, contextType: 'dict', word: dictWord };
-        }
-
-        // Text selection
-        const sel = window.getSelection().toString().trim() || this.lastSelection;
-        if (sel && sel.length > 3) {
-            const preview = sel.length > 28 ? sel.slice(0, 28) + '…' : sel;
-            return { label: `🖊️ Bôi đen: "${preview}"`, contextType: 'selection', word: '' };
-        }
-
-        // Tab fallback
-        const tabLabels = {
-            quiz:      '🧠 Học Tập',
-            dictation: '✍️ Chép Chính Tả',
-            listening: '🎧 Luyện Nghe',
-            reading:   '📰 Luyện Đọc',
-            data:      '📂 Dữ Liệu',
-            list:      '📚 Danh Sách',
-        };
-        return {
-            label: tabLabels[activeTabId] || activeTabTxt,
-            contextType: activeTabId || 'general',
-            word: '',
-        };
-    }
-
-    // ─────────────────────────────────────────
     //  GỬI VÀ NHẬN TIN NHẮN
     // ─────────────────────────────────────────
     async handleSend(text) {
@@ -190,8 +77,11 @@ class AIChatbox {
 
         this.input.value = '';
         this.input.style.height = 'auto';
-        this.clearSuggestedReplies();
-        this.lastUserPrompt = message;
+
+        if (message === '/clear') {
+            this.clearHistory();
+            return;
+        }
 
         this.addMessage(message, 'user');
         this.saveHistory(message, 'user');
@@ -204,17 +94,7 @@ class AIChatbox {
         this.sendBtn.disabled = true;
         this.showLoader();
 
-        const context = this.getSystemContext();
-        const systemInstruction = [
-            '[VAI TRÒ]: Bạn là trợ lý học ngôn ngữ của Vocab Pro.',
-            '[NGÔN NGỮ TRẢ LỜI]: Luôn trả lời bằng tiếng Việt.',
-            '[PHONG CÁCH]: Trả lời đầy đủ nhưng ngắn gọn, theo dạng 3-6 gạch đầu dòng.',
-            '[RÀNG BUỘC]: Mỗi gạch đầu dòng tối đa 1-2 câu, ưu tiên thông tin trọng tâm.',
-            '[KHI THIẾU DỮ KIỆN]: Chỉ hỏi lại tối đa 1 câu làm rõ.',
-            '[NỘI DUNG]: Tận dụng bối cảnh học tập được cung cấp để trả lời đúng ngữ cảnh.'
-        ].join('\n');
-
-        const contextualPrompt = `${systemInstruction}\n\n[BỐI CẢNH HỆ THỐNG]: ${context}\n\n[CÂU HỎI CỦA NGƯỜI DÙNG]: ${prompt}`;
+        const contextualPrompt = this.buildPrompt(prompt);
 
         try {
             const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
@@ -229,15 +109,10 @@ class AIChatbox {
             if (!response.ok) throw new Error(data.detail || 'Lỗi kết nối');
 
             const aiText = data.result || 'Tôi không nhận được phản hồi từ máy chủ.';
-            this.lastAIRawText = aiText;
 
             // Hiển thị với hiệu ứng typewriter
             await this.addMessageWithTypewriter(aiText, 'ai');
             this.saveHistory(aiText, 'ai');
-
-            // Hiển thị suggested replies sau khi AI trả lời xong
-            const { contextType } = this.getContextInfo();
-            this.showSuggestedReplies(contextType);
 
         } catch (error) {
             this.hideLoader();
@@ -246,15 +121,6 @@ class AIChatbox {
             this.isTyping = false;
             this.sendBtn.disabled = false;
         }
-    }
-
-    async regenerateLastResponse() {
-        if (!this.lastUserPrompt || this.isTyping) return;
-        // Xóa message AI cuối
-        const lastWrapper = this.messagesContainer.querySelector('.ai-wrapper:last-child');
-        if (lastWrapper) lastWrapper.remove();
-        this.clearSuggestedReplies();
-        await this.getAIResponse(this.lastUserPrompt);
     }
 
     // ─────────────────────────────────────────
@@ -279,12 +145,6 @@ class AIChatbox {
         timeEl.className = 'msg-time';
         timeEl.textContent = this.getTimeString();
         wrapper.appendChild(timeEl);
-
-        // Action buttons (chỉ cho AI message)
-        if (role === 'ai') {
-            const actions = this.createMessageActions(text, wrapper);
-            wrapper.appendChild(actions);
-        }
 
         this.messagesContainer.appendChild(wrapper);
         this.scrollToBottom();
@@ -314,10 +174,6 @@ class AIChatbox {
         timeEl.className = 'msg-time';
         timeEl.textContent = this.getTimeString();
         wrapper.appendChild(timeEl);
-
-        // Action buttons
-        const actions = this.createMessageActions(text, wrapper);
-        wrapper.appendChild(actions);
 
         this.scrollToBottom();
         return wrapper;
@@ -362,192 +218,80 @@ class AIChatbox {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    /**
-     * Tạo action buttons cho AI message (copy, thumb)
-     */
-    createMessageActions(rawText, wrapper) {
-        const actions = document.createElement('div');
-        actions.className = 'msg-actions';
+    buildPrompt(userPrompt) {
+        // const systemInstruction = [
+        //     'Bạn là trợ lý AI tổng quát, trả lời được mọi câu hỏi.',
+        //     'Hãy trả lời bằng đúng ngôn ngữ người dùng đang dùng.',
+        //     'Nếu câu hỏi mơ hồ hoặc thiếu dữ kiện quan trọng, chỉ hỏi lại tối đa 1 câu để làm rõ.',
+        //     'Ưu tiên chính xác; nếu không chắc, nói rõ mức độ không chắc và đề xuất cách kiểm chứng.',
+        // ].join('\n');
+        const systemInstruction = [
+            'Bạn là AI chuyên gia giảng dạy tiếng Anh và tiếng Trung (HSK).',
+            'Vai trò: giáo viên + trợ giảng + sửa lỗi + tạo bài tập.',
+          
+            'LUÔN trả lời bằng đúng ngôn ngữ người dùng đang dùng (mặc định: tiếng Việt).',
+          
+            '--- NGUYÊN TẮC QUAN TRỌNG ---',
+            '1. Nếu người dùng viết tiếng Anh/Trung → kiểm tra lỗi và sửa.',
+            '2. Giải thích lỗi NGẮN GỌN, dễ hiểu.',
+            '3. Luôn đưa ví dụ thực tế (level phù hợp).',
+            '4. Nếu người dùng học từ vựng → trả theo FORMAT chuẩn.',
+            '5. Nếu người dùng yêu cầu luyện tập → tạo bài tập + đáp án.',
+            '6. Không trả lời lan man, ưu tiên dễ học – dễ nhớ.',
+            '7. Nếu câu hỏi mơ hồ → chỉ hỏi lại 1 câu để làm rõ.',
+          
+            '--- FORMAT TỪ VỰNG (BẮT BUỘC) ---',
+            'word | pronunciation | meaning | example | level',
+            'Ví dụ:',
+            'apple | /ˈæp.əl/ | quả táo | I eat an apple every day. | A1',
+          
+            '--- FORMAT SỬA CÂU ---',
+            '❌ Câu sai',
+            '✅ Câu đúng',
+            '📌 Giải thích ngắn',
+          
+            '--- FORMAT TIẾNG TRUNG ---',
+            '汉字 | pinyin | nghĩa | ví dụ',
+            '你好 | nǐ hǎo | xin chào | 你好，我是学生。',
+          
+            '--- LUYỆN TẬP ---',
+            'Nếu người dùng nói "luyện tập" hoặc "quiz":',
+            '- Tạo 3–5 câu hỏi',
+            '- Có đáp án ở cuối',
+            '- Phù hợp trình độ (A1–C1 hoặc HSK1–HSK6)',
+          
+            '--- CÁ NHÂN HÓA ---',
+            'Nếu người dùng không nói level → mặc định B1 (EN) / HSK2 (ZH).',
+          
+            '--- ĐỘ CHÍNH XÁC ---',
+            'Nếu không chắc → nói rõ và đề xuất cách kiểm chứng.',
+          ].join('\n');
 
-        // Copy button
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'msg-action-btn';
-        copyBtn.innerHTML = '📋 Copy';
-        copyBtn.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(rawText);
-                copyBtn.innerHTML = '✅ Đã copy!';
-                copyBtn.classList.add('copied');
-                setTimeout(() => {
-                    copyBtn.innerHTML = '📋 Copy';
-                    copyBtn.classList.remove('copied');
-                }, 2000);
-            } catch {
-                copyBtn.innerHTML = '❌ Lỗi';
-                setTimeout(() => { copyBtn.innerHTML = '📋 Copy'; }, 2000);
-            }
-        });
-        actions.appendChild(copyBtn);
-
-        // Thumb up
-        const thumbUp = document.createElement('button');
-        thumbUp.className = 'msg-action-btn thumb-up';
-        thumbUp.innerHTML = '👍';
-        thumbUp.title = 'Câu trả lời tốt';
-        thumbUp.addEventListener('click', () => {
-            thumbUp.classList.toggle('active');
-            thumbDown.classList.remove('active');
-        });
-        actions.appendChild(thumbUp);
-
-        // Thumb down
-        const thumbDown = document.createElement('button');
-        thumbDown.className = 'msg-action-btn thumb-down';
-        thumbDown.innerHTML = '👎';
-        thumbDown.title = 'Câu trả lời chưa tốt';
-        thumbDown.addEventListener('click', () => {
-            thumbDown.classList.toggle('active');
-            thumbUp.classList.remove('active');
-        });
-        actions.appendChild(thumbDown);
-
-        return actions;
-    }
-
-    // ─────────────────────────────────────────
-    //  SUGGESTED REPLIES
-    // ─────────────────────────────────────────
-    showSuggestedReplies(contextType) {
-        if (!this.suggestedRepliesContainer) return;
-        this.clearSuggestedReplies();
-
-        const suggestions = this.getSmartSuggestions(contextType);
-        if (!suggestions.length) return;
-
-        suggestions.forEach(text => {
-            const btn = document.createElement('button');
-            btn.className = 'suggested-reply';
-            btn.textContent = text;
-            btn.addEventListener('click', () => {
-                this.clearSuggestedReplies();
-                this.handleSend(text);
-            });
-            this.suggestedRepliesContainer.appendChild(btn);
-        });
-    }
-
-    getSmartSuggestions(contextType) {
-        const { word } = this.getContextInfo();
-        const w = word || 'từ này';
-
-        const map = {
-            quiz:      [
-                `Cho ví dụ thực tế khác với "${w}"`,
-                `Từ đồng nghĩa và trái nghĩa của "${w}"?`,
-                `Cách nhớ "${w}" lâu hơn?`,
-            ],
-            fillblank: [
-                `Giải thích cách dùng "${w}" trong câu`,
-                `Các cụm từ thường gặp với "${w}"`,
-            ],
-            match:     [
-                'Gợi ý mẹo ghi nhớ nhanh',
-                'Từ nào khó nhất trong nhóm này?',
-            ],
-            dict:      [
-                `Thêm 2 ví dụ cho "${w}"`,
-                `"${w}" dùng trong lĩnh vực nào?`,
-                `Từ liên quan đến "${w}"`,
-            ],
-            selection: [
-                'Dịch đoạn này sang tiếng Việt',
-                'Phân tích ngữ pháp câu này',
-                'Giải thích nghĩa chi tiết hơn',
-            ],
-            reading:   [
-                'Tóm tắt bài viết này',
-                'Liệt kê từ vựng IT quan trọng trong bài',
-            ],
-            dictation: [
-                'Phân tích câu vừa nghe',
-                'Giải thích ngữ pháp câu này',
-            ],
-            listening: [
-                'Giới thiệu về kênh này',
-                'Gợi ý từ vựng học từ video',
-            ],
-            general:   [
-                'Tôi nên học từ vựng như thế nào?',
-                'Phương pháp SRS là gì?',
-            ],
-        };
-
-        return map[contextType] || map['general'];
-    }
-
-    clearSuggestedReplies() {
-        if (this.suggestedRepliesContainer) {
-            this.suggestedRepliesContainer.innerHTML = '';
-        }
-    }
-
-    // ─────────────────────────────────────────
-    //  CONTEXT SYSTEM (gửi lên AI)
-    // ─────────────────────────────────────────
-    getSystemContext() {
-        const { label, contextType } = this.getContextInfo();
-        const activeTab = document.querySelector('.tab-btn.active')?.innerText || 'Không rõ';
-
-        // 1. Selection
-        const currentSelection = window.getSelection().toString().trim();
-        const rawSelection = currentSelection || this.lastSelection || '';
-        const selection = rawSelection.length > this.MAX_SELECTION_CONTEXT
-            ? `${rawSelection.slice(0, this.MAX_SELECTION_CONTEXT)}...`
-            : rawSelection;
-
-        let quizContext = '';
-
-        // 2. Quiz modes
-        const modeMultipleChoice = document.getElementById('modeMultipleChoice');
-        const modeMatchWords     = document.getElementById('modeMatchWords');
-        const modeFillBlank      = document.getElementById('modeFillBlank');
-
-        if (modeMultipleChoice && modeMultipleChoice.style.display !== 'none') {
-            const qWord     = document.getElementById('qWord')?.innerText;
-            const qMeaning  = AppState.currentQuizItem?.m || '';
-            const qExample  = AppState.currentQuizItem?.ex || '';
-            const qPhonetic = document.getElementById('qPhonetic')?.innerText;
-            if (qWord && qWord !== '---') {
-                quizContext = `Học viên đang làm trắc nghiệm từ: "${qWord}" ${qPhonetic ? `(${qPhonetic})` : ''}. Nghĩa: "${qMeaning}". ${qExample ? `Ví dụ: "${qExample}".` : ''}`;
-            }
-        } else if (modeFillBlank && modeFillBlank.style.display !== 'none') {
-            const sentence   = document.getElementById('fbSentence')?.innerText || '';
-            const options    = Array.from(document.querySelectorAll('#fbOptions .fb-pill')).map(b => b.innerText).join(', ');
-            const targetWord = AppState.currentQuizItem?.w || '';
-            const targetMeaning = AppState.currentQuizItem?.m || '';
-            quizContext = `Học viên đang làm bài ĐIỀN VÀO CHỖ TRỐNG. Câu văn: "${sentence.replace(/\n/g, ' ')}". Các lựa chọn: [${options}]. ${targetWord ? `Từ mục tiêu: "${targetWord}"` : ''}${targetMeaning ? `, nghĩa: "${targetMeaning}".` : '.'}`;
-        } else if (modeMatchWords && modeMatchWords.style.display !== 'none') {
-            const cards = Array.from(document.querySelectorAll('.match-card:not(.matched)')).map(c => c.innerText).join(', ');
-            quizContext = `Học viên đang làm bài NỐI TỪ. Các từ còn lại: [${cards}].`;
-        }
-
-        // 3. Dictionary Popup
-        const dictWord        = document.getElementById('dict-word')?.innerText;
-        const dictPhonetic    = document.getElementById('dict-phonetic')?.innerText || '';
-        const dictMeaningRaw  = document.getElementById('dict-meaning')?.innerText || '';
-        const dictMeaning     = dictMeaningRaw.length > 300 ? `${dictMeaningRaw.slice(0, 300)}...` : dictMeaningRaw;
-        const dictPopupActive = document.getElementById('dict-popup')?.classList.contains('active');
-        const dictContext     = (dictPopupActive && dictWord)
-            ? `Cửa sổ tra từ điển đang mở cho từ: "${dictWord}" ${dictPhonetic ? `(${dictPhonetic})` : ''}. Nghĩa: "${dictMeaning}".`
+        const convo = this.getConversationForPrompt();
+        const historyBlock = convo.length
+            ? `\n\n[HỘI THOẠI TRƯỚC ĐÓ]\n${convo.join('\n')}`
             : '';
 
-        // 4. SRS progress
-        const dueCount = AppState.dueWords?.length || 0;
-        const done     = AppState.sessionDoneCount || 0;
-        const limit    = AppState.sessionLimit || 30;
-        const progressContext = `SRS: due=${dueCount}, session=${done}/${limit}.`;
+        return `${systemInstruction}${historyBlock}\n\n[NGƯỜI DÙNG]\n${userPrompt}\n\n[TRỢ LÝ AI]`;
+    }
 
-        return `Vị trí: Tab "${activeTab}". ${progressContext} ${quizContext} ${selection ? `Đoạn văn bản bôi đen: "${selection}".` : ''} ${dictContext}`.trim();
+    getConversationForPrompt() {
+        // Lấy các đoạn gần nhất sao cho không vượt quá giới hạn ký tự
+        const items = [];
+        let charCount = 0;
+        for (let i = this.history.length - 1; i >= 0; i--) {
+            const msg = this.history[i];
+            if (!msg?.text || !msg?.role) continue;
+
+            const line = `${msg.role === 'user' ? 'User' : 'Assistant'}: ${String(msg.text).replace(/\s+/g, ' ').trim()}`;
+            if (!line.trim()) continue;
+
+            const nextCount = charCount + line.length + 1;
+            if (nextCount > this.MAX_HISTORY_CHARS) break;
+            items.push(line);
+            charCount = nextCount;
+        }
+        return items.reverse();
     }
 
     // ─────────────────────────────────────────
@@ -584,32 +328,15 @@ class AIChatbox {
 
     clearHistory() {
         this.history = [];
-        this.lastUserPrompt = '';
-        this.lastAIRawText  = '';
         localStorage.removeItem('ai_chat_history');
-        this.clearSuggestedReplies();
         this.messagesContainer.innerHTML = `
             <div class="msg-wrapper ai-wrapper" style="animation:slideUpFade 0.3s ease">
                 <div class="ai-msg">
-                    Lịch sử đã được xóa. Hãy hỏi tôi bất cứ điều gì! 😊
+                    Lịch sử đã được xóa. Bạn có thể hỏi tôi bất cứ điều gì.
                 </div>
                 <div class="msg-time">${this.getTimeString()}</div>
             </div>
         `;
-    }
-
-    async copyLastAIMessage() {
-        const lastAi = [...this.history].reverse().find(msg => msg.role === 'ai');
-        if (!lastAi?.text) {
-            this.addMessage('Chưa có câu trả lời AI nào để sao chép.', 'ai');
-            return;
-        }
-        try {
-            await navigator.clipboard.writeText(lastAi.text);
-            this.addMessage('✅ Đã sao chép câu trả lời AI gần nhất vào clipboard!', 'ai');
-        } catch {
-            this.addMessage('Không thể sao chép tự động. Vui lòng copy thủ công.', 'ai');
-        }
     }
 
     renderHistory() {
@@ -617,27 +344,6 @@ class AIChatbox {
             this.messagesContainer.innerHTML = '';
             this.history.forEach(msg => this.addMessage(msg.text, msg.role));
         }
-    }
-
-    // ─────────────────────────────────────────
-    //  TUTORIAL
-    // ─────────────────────────────────────────
-    showTutorial() {
-        const tutorialText = `🚀 **Hướng dẫn sử dụng AI Trợ lý:**
-
-1. **Đang học Quiz:** Khi từ hiển thị trên màn hình, hỏi: *"Giải thích từ này"* → AI biết ngay đó là từ nào.
-
-2. **Bôi đen văn bản:** Bôi một câu bất kỳ rồi hỏi *"Dịch đoạn này"* → AI dùng đúng đoạn đó.
-
-3. **Tra từ điển:** Khi popup từ điển đang mở, AI tự biết bạn đang xem từ gì.
-
-4. **Suggested Replies:** Sau mỗi câu trả lời, AI gợi ý câu hỏi tiếp theo thông minh.
-
-5. **Nút Thử lại 🔄:** Nếu câu trả lời chưa ưng, bấm để AI trả lời lại.
-
-*💡 Context chip (góc trên) cho bạn biết AI đang "nhìn" gì nhé!*`;
-
-        this.addMessage(tutorialText, 'ai');
     }
 
     // ─────────────────────────────────────────
