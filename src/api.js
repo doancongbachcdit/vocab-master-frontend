@@ -3,9 +3,14 @@ import { API_BASE_URL } from './config.js';
 import { db, deleteDoc, doc } from './firebase-config.js';
 
 export async function fetchAllWords(userId, pageNumber = 1, pageSize = 50) {
-    const response = await fetch(`${API_BASE_URL}/api/vocab/user/${userId}?pageNumber=${pageNumber}&pageSize=${pageSize}`);
-    if (!response.ok) throw new Error("Không thể tải dữ liệu từ CSDL");
-    return await response.json();
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/vocab/user/${userId}?pageNumber=${pageNumber}&pageSize=${pageSize}`);
+        if (!response.ok) throw new Error("Không thể tải dữ liệu từ CSDL");
+        return await response.json();
+    } catch (error) {
+        // Browser sẽ ném TypeError khi bị CORS/network, nên trả thông báo rõ ràng hơn.
+        throw new Error("Không kết nối được API (CORS hoặc backend đang lỗi).");
+    }
 }
 
 export async function addWordToBackend(newItem) {

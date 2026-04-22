@@ -292,7 +292,7 @@ async function loadDataFromCloud() {
         }
     } catch (error) {
         console.error("Lỗi loadDataFromCloud:", error);
-        document.getElementById('reviewStatus').innerHTML = "⚠️ Lỗi tải dữ liệu!";
+        document.getElementById('reviewStatus').innerHTML = "⚠️ Lỗi tải dữ liệu (kiểm tra CORS backend)!";
         AppState.isLoading = false;
         hideLoader();
     }

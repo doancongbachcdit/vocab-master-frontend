@@ -240,6 +240,8 @@ export function resetQuiz() {
     AppState.quizHistory = [];
     AppState.historyIndex = -1;
     AppState.isCramMode = false;
+    AppState.pendingFillBlankWordId = null;
+    AppState.mcCorrectWordIdsForMatch = [];
     resetStudySessionIfNeeded(true);
     nextQuestion();
 }
@@ -261,40 +263,28 @@ export function nextQuestion() {
     const filteredPool = currentFilter === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === currentFilter);
     const filteredDue = currentFilter === 'ALL' ? AppState.dueWords : AppState.dueWords.filter(w => w.l === currentFilter);
 
-    // Chọn ngẫu nhiên loại Quiz dựa trên kho từ đã lọc
-    const types = ['multiple_choice'];
-    if (filteredPool.length >= 4) types.push('match_words');
-    
     const wordsWithEx = filteredPool.filter(w => w.ex && w.ex.trim().length > 0);
-    if (wordsWithEx.length > 0) types.push('fill_blank');
-
-    const quizType = types[Math.floor(Math.random() * types.length)];
+    let quizType = 'multiple_choice';
+    const hasEnoughForMatch = AppState.mcCorrectWordIdsForMatch.length >= 4;
+    const hasPendingFillBlank = Boolean(AppState.pendingFillBlankWordId);
+    if (hasPendingFillBlank) {
+        quizType = 'fill_blank';
+    } else if (hasEnoughForMatch) {
+        quizType = 'match_words';
+    }
 
     let qData;
 
     if (quizType === 'match_words') {
-        // Ưu tiên lấy từ đến hạn (dueWords) trong pool đã lọc
-        const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
-        const sessionPool = getSessionWords({ preferredLang, requireExample: false });
-        const sourcePool = (filteredDue.length >= 4 ? filteredDue : filteredPool);
-
-        // Choose a language for this round (avoid mixing when ALL)
-        let langForRound = preferredLang;
-        if (!langForRound) {
-            const seed = (sessionPool.length > 0 ? sessionPool : sourcePool);
-            const firstWord = seed[Math.floor(Math.random() * seed.length)];
-            langForRound = firstWord?.l || 'EN';
+        const targetIds = AppState.mcCorrectWordIdsForMatch.slice(-4);
+        const targetWords = targetIds
+            .map(id => AppState.cachedWords.find(w => w.id === id))
+            .filter(Boolean);
+        if (targetWords.length < 4) {
+            AppState.mcCorrectWordIdsForMatch = [];
+            return nextQuestion();
         }
-
-        // Prefer session words of this language; fallback to due/pool
-        let candidates = sessionPool.filter(w => w.l === langForRound);
-        if (candidates.length < 4) {
-            const dueSameLang = filteredDue.filter(w => w.l === langForRound);
-            const poolSameLang = filteredPool.filter(w => w.l === langForRound);
-            candidates = (dueSameLang.length >= 4 ? dueSameLang : poolSameLang);
-        }
-
-        const targetWords = candidates.sort(() => 0.5 - Math.random()).slice(0, 4);
+        AppState.mcCorrectWordIdsForMatch = [];
         
         // Tách riêng 2 bên: Trái (Từ gốc), Phải (Nghĩa) và xáo trộn độc lập
         const leftSide = targetWords.map(w => ({ id: w.id, text: w.w, type: 'word' })).sort(() => 0.5 - Math.random());
@@ -316,9 +306,16 @@ export function nextQuestion() {
         };
     } else if (quizType === 'fill_blank') {
         let questionItem = null;
+        const pendingWordId = AppState.pendingFillBlankWordId;
+        AppState.pendingFillBlankWordId = null;
+        if (pendingWordId) {
+            questionItem = AppState.cachedWords.find(w => w.id === pendingWordId) || null;
+        }
         const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
-        const pickedId = getNextSessionWordId(preferredLang, true);
-        if (pickedId) questionItem = AppState.cachedWords.find(w => w.id === pickedId) || null;
+        if (!questionItem) {
+            const pickedId = getNextSessionWordId(preferredLang, true);
+            if (pickedId) questionItem = AppState.cachedWords.find(w => w.id === pickedId) || null;
+        }
         // Ensure the example actually contains the target word; otherwise blank can't be rendered
         if (questionItem && !exampleContainsWord(questionItem)) questionItem = null;
 
@@ -593,6 +590,21 @@ export function handleAnswer(btn, selected, correct) {
 
     const isCorrect = (selected.id === correct.id);
     if (isCorrect) {
+        const currentQuestion = AppState.quizHistory[AppState.historyIndex];
+        if (currentQuestion?.type === 'multiple_choice') {
+            if (correct.ex && correct.ex.trim().length > 0 && exampleContainsWord(correct)) {
+                AppState.pendingFillBlankWordId = correct.id;
+            } else {
+                AppState.pendingFillBlankWordId = null;
+            }
+            const exists = AppState.mcCorrectWordIdsForMatch.includes(correct.id);
+            if (!exists) {
+                AppState.mcCorrectWordIdsForMatch.push(correct.id);
+                if (AppState.mcCorrectWordIdsForMatch.length > 4) {
+                    AppState.mcCorrectWordIdsForMatch = AppState.mcCorrectWordIdsForMatch.slice(-4);
+                }
+            }
+        }
         btn.classList.add('correct');
         document.getElementById('qMsg').innerHTML = "<span style='color:var(--success)'>Chính xác! 🎉 Chọn mức độ nhớ:</span>";
         if (!AppState.isCramMode) {

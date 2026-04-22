@@ -49,6 +49,11 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   // Bỏ qua các request POST/PUT (Vì Firebase dùng cái này để đồng bộ dữ liệu)
   if (e.request.method !== 'GET') return;
+  // Chỉ cache chiến lược cho request cùng origin (HTML/CSS/JS/assets của app).
+  // Request cross-origin (API backend, CDN...) để browser xử lý trực tiếp,
+  // tránh lỗi promise reject trong SW khi gặp CORS/network.
+  const reqUrl = new URL(e.request.url);
+  if (reqUrl.origin !== self.location.origin) return;
 
   // Bỏ qua các API kết nối trực tiếp đến Database của Google
   // (Để cho Firebase tự lo phần Offline Database của nó)
@@ -57,7 +62,7 @@ self.addEventListener('fetch', (e) => {
   // Với các file code/ảnh/css bình thường -> Lấy từ Cache ra dùng
   e.respondWith(
     caches.match(e.request).then((response) => {
-      return response || fetch(e.request);
+      return response || fetch(e.request).catch(() => response);
     })
   );
 });
