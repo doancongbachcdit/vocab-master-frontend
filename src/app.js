@@ -4,7 +4,7 @@ import { speakText, downloadSample, exportJSON } from './utils.js';
 // 2. IMPORT MODULE TỪ BÊN NGOÀI
 import { API_BASE_URL, AppState, resetAppState } from './config.js';
 import { gradeAnswer, getAIHint, generateAIQuestions } from './ai-services.js';
-import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBackend, updateWordSRSToBackend, deleteAllWordsFromFirebase } from './api.js';
+import { fetchAllWords, addWordToBackend, deleteWordFromBackend, importCSVToBackend, updateWordSRSToBackend, deleteAllWordsFromBackend } from './api.js';
 import { updateSRSStatus, speakCurrent, resetQuiz, nextQuestion, prevQuestion, handleAnswer, forceReviewMode, handleSM2Rating, handleMatchClick, handleFillBlankOptionClick } from './quiz.js';
 import { renderList, switchTab, showLoader, hideLoader } from './ui.js';
 import { loadRandomDictation, handleDictationKeydown } from './dictation.js';
@@ -498,29 +498,36 @@ export async function deleteWord(id) {
 
 async function deleteAllWords() {
     if (!AppState.currentUser) return alert("Vui lòng đăng nhập!");
+    if (AppState.cachedWords.length === 0) return alert("  Kho từ đang trống, không có gì để xóa!");
 
-    // Hỏi xác nhận 2 lần để tránh bấm nhầm
-    if (!confirm(`⚠️ CẢNH BÁO NGUY HIỂM:\nBạn có chắc chắn muốn XÓA VĨNH VIỄN toàn bộ ${AppState.cachedWords.length} từ vựng hiện có không? Hành động này KHÔNG THỂ HOÀN TÁC!`)) return;
+    // Xác nhận 2 bước để tránh bấm nhầm
+    if (!confirm(`⚠️ CảNH BÁO:\nBạn có chắc chắn muốn XÓA VĨNH VIỄN toàn bộ ${AppState.cachedWords.length} từ vựng không?\nHành động này KHÔNG THỂ HOÀN TÁC!`)) return;
+    if (!confirm(`❓ Xác nhận lần 2: Gõ OK để tiếp tục xóa ${AppState.cachedWords.length} từ.`)) return;
+
+    const total = AppState.cachedWords.length;
+    const statusEl = document.getElementById('reviewStatus');
+    const btnDeleteAll = document.getElementById('btnDeleteAll');
 
     try {
-        showLoader("⏳ Đang dọn dẹp dữ liệu máy chủ...");
-        document.getElementById('reviewStatus').innerHTML = "⏳ Đang dọn dẹp mây...";
+        showLoader(`⏳ Đang xóa ${total} từ khỏi máy chủ...`);
+        if (btnDeleteAll) { btnDeleteAll.disabled = true; btnDeleteAll.innerText = '⏳ Đang xóa...'; }
+        statusEl.innerHTML = `⏳ Đang xóa <b>0/${total}</b> từ...`;
 
-        // Quét vòng lặp và xóa từng từ trên Firebase thông qua API
-        await deleteAllWordsFromFirebase(AppState.cachedWords);
+        // Gọi API xóa qua C# backend (không đụng Firebase trực tiếp)
+        await deleteAllWordsFromBackend(AppState.cachedWords);
 
-        // Xóa sạch bộ nhớ RAM của app
+        // Reset bộ nhớ RAM
         AppState.cachedWords = [];
         updateSRSStatus();
         if (document.getElementById('list').classList.contains('active')) renderList();
 
-        alert("✅ Đã dọn sạch bong!");
+        alert(`✅ Đã xóa sạch ${total} từ thành công!`);
     } catch (e) {
         alert("Lỗi khi xóa: " + e.message);
     } finally {
         hideLoader();
+        if (btnDeleteAll) { btnDeleteAll.disabled = false; btnDeleteAll.innerText = '🗑️ Xóa Sạch Dữ Liệu Cũ'; }
     }
-
 }
 
 async function fetchYouTubeVideos(forceRefresh = true) {
