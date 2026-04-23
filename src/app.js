@@ -131,6 +131,19 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnAutoFill').addEventListener('click', autoFillWord);
     document.getElementById('btnRefreshFeed').addEventListener('click', () => fetchDevToArticles(true));
     document.getElementById('btnRefreshYoutube').addEventListener('click', () => fetchYouTubeVideos(true));
+
+    // Tag filter bar for Reading tab
+    const readingTagBar = document.getElementById('readingTagBar');
+    if (readingTagBar) {
+        readingTagBar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.rtag-btn');
+            if (!btn) return;
+            readingTagBar.querySelectorAll('.rtag-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const tag = btn.getAttribute('data-tag');
+            fetchDevToArticles(true, tag);
+        });
+    }
     // Ẩn/Hiện 3 ô Giải phẫu từ tùy theo ngôn ngữ (EN / CN)
     const inpLangEl = document.getElementById('inpLang');
     if (inpLangEl) {
@@ -736,61 +749,187 @@ async function importJSON(event) {
     reader.readAsText(file);
 }
 
-async function fetchDevToArticles(forceRefresh = true) {
+async function fetchDevToArticles(forceRefresh = true, tag = null) {
     const feedDiv = document.getElementById('devtoFeed');
+    const readerPanel = document.getElementById('articleReader');
+
+    // Determine active tag from button bar if not passed
+    if (!tag) {
+        const activeTagBtn = document.querySelector('.rtag-btn.active');
+        tag = activeTagBtn ? activeTagBtn.getAttribute('data-tag') : 'programming';
+    }
 
     // Xóa nội dung cũ khi ép tải lại
-    if (forceRefresh) feedDiv.innerHTML = '';
-    else if (feedDiv.innerHTML.trim() !== '') return;
+    if (forceRefresh) {
+        feedDiv.innerHTML = '';
+        // Reset reader về placeholder
+        const placeholder = document.getElementById('readerPlaceholder');
+        if (placeholder) {
+            readerPanel.innerHTML = '';
+            readerPanel.appendChild(placeholder);
+            placeholder.style.display = 'flex';
+        } else {
+            readerPanel.innerHTML = `
+                <div class="reader-placeholder" id="readerPlaceholder">
+                    <div class="reader-placeholder-icon">📖</div>
+                    <p>Chọn một bài viết bên trái để đọc ngay tại đây</p>
+                    <p style="font-size:0.8em; color:#94a3b8;">Bôi chọn từ để tra từ điển tức thì</p>
+                </div>`;
+        }
+    } else if (feedDiv.innerHTML.trim() !== '') return;
 
-    showLoader("⏳ Đang kéo bài viết từ Dev.to...");
+    // Show skeleton placeholders while loading list
+    feedDiv.innerHTML = Array(5).fill(0).map(() => `
+        <div class="article-card">
+            <div class="skeleton-line sk-cover" style="height:80px;"></div>
+            <div class="skeleton-line sk-title" style="margin-top:10px;"></div>
+            <div class="skeleton-line sk-short" style="margin-top:6px;"></div>
+        </div>`).join('');
+
     try {
-        const response = await fetch('https://dev.to/api/articles?tag=programming&top=7');
-        if (!response.ok) throw new Error("Mạng lỗi khi tải bài viết.");
+        const response = await fetch(`https://dev.to/api/articles?tag=${encodeURIComponent(tag)}&top=7&per_page=10`);
+        if (!response.ok) throw new Error("Không kết nối được Dev.to API.");
         const data = await response.json();
 
+        feedDiv.innerHTML = '';
+
         if (!data || data.length === 0) {
-            feedDiv.innerHTML = '<p style="text-align:center;">Không có bài viết nào để hiển thị.</p>';
+            feedDiv.innerHTML = '<p style="text-align:center; color:#94a3b8; padding:20px;">Không có bài viết nào.</p>';
             return;
         }
 
-        const latestArticles = data.slice(0, 5);
+        const articles = data.slice(0, 10);
 
-        latestArticles.forEach(item => {
-            const articleCard = document.createElement('div');
-            articleCard.className = 'card';
-            articleCard.style.padding = '15px';
-            articleCard.style.marginBottom = '15px';
-            articleCard.style.borderLeft = '4px solid #3b82f6';
+        articles.forEach((item, idx) => {
+            const card = document.createElement('div');
+            card.className = 'article-card';
+            card.setAttribute('data-id', item.id);
+            card.setAttribute('data-url', item.url);
 
-            // Generate Tags UI
-            let tagsHtml = '';
-            if (item.tag_list && item.tag_list.length > 0) {
-                tagsHtml = item.tag_list.slice(0, 3).map(tag => `<span style="background:#e2e8f0; color:#475569; padding:2px 6px; border-radius:4px; font-size:0.75em; margin-right:5px;">#${tag}</span>`).join('');
+            // Build tags html
+            const tagsHtml = (item.tag_list || []).slice(0, 3)
+                .map(t => `<span class="article-tag-chip">#${t}</span>`).join('');
+
+            // Cover image
+            const coverHtml = item.cover_image
+                ? `<img class="article-card-cover" src="${item.cover_image}" alt="" loading="lazy">`
+                : '';
+
+            card.innerHTML = `
+                ${coverHtml}
+                <p class="article-card-title">${item.title}</p>
+                <div class="article-card-meta">
+                    <span>✍️ ${item.user.name}</span>
+                    <span>📅 ${new Date(item.published_at).toLocaleDateString('vi-VN')}</span>
+                </div>
+                <div class="article-card-tags">${tagsHtml}</div>
+            `;
+
+            // Click → load full article inline
+            card.addEventListener('click', () => openArticleInReader(item, card));
+
+            feedDiv.appendChild(card);
+
+            // Auto-open first article
+            if (idx === 0) {
+                setTimeout(() => openArticleInReader(item, card), 300);
             }
+        });
 
-            articleCard.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <div style="flex: 1;">
-                        <h4 style="margin: 0 0 8px 0; color: var(--text-color); font-size: 1.1em;">
-                            <a href="${item.url}" target="_blank" style="text-decoration: none; color: #1d4ed8;">${item.title}</a>
-                        </h4>
-                        <div style="font-size: 0.85em; color: #64748b; margin-bottom: 8px;">
-                            ✍️ Bởi: <b>${item.user.name}</b> | 📅 Xuất bản: ${new Date(item.published_at).toLocaleDateString()}
-                        </div>
-                        <div style="margin-bottom: 8px;">${tagsHtml}</div>
-                        <p style="font-size: 0.9em; color: #475569; margin: 0; line-height: 1.4;">
-                            ${item.description || 'Không có tóm tắt...'}
-                        </p>
+    } catch (e) {
+        feedDiv.innerHTML = `<p style="text-align:center; color:#ef4444; padding:20px;">⚠️ Lỗi: ${e.message}</p>`;
+    }
+}
+
+// Open an article's full content inside the reader panel
+async function openArticleInReader(item, cardEl) {
+    const readerPanel = document.getElementById('articleReader');
+    const feedDiv = document.getElementById('devtoFeed');
+
+    // Mark active card
+    feedDiv.querySelectorAll('.article-card').forEach(c => c.classList.remove('active'));
+    cardEl.classList.add('active', 'loading-content');
+
+    // Show skeleton while loading body
+    readerPanel.innerHTML = `
+        <div class="reader-skeleton">
+            <div class="skeleton-line sk-cover"></div>
+            <div class="skeleton-line sk-title"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line sk-short"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line"></div>
+            <div class="skeleton-line sk-short"></div>
+            <div class="skeleton-line"></div>
+        </div>`;
+
+    try {
+        // Fetch full article with body_html
+        const res = await fetch(`https://dev.to/api/articles/${item.id}`);
+        if (!res.ok) throw new Error('Không tải được nội dung bài.');
+        const article = await res.json();
+
+        const coverHtml = article.cover_image
+            ? `<img class="reader-cover-img" src="${article.cover_image}" alt="${article.title}">`
+            : '';
+
+        const avatarHtml = article.user?.profile_image
+            ? `<img class="reader-avatar" src="${article.user.profile_image}" alt="${article.user.name}">`
+            : '';
+
+        // Dev.to /articles/{id} trả tag_list dạng string "js,webdev" thay vì array
+        const tagList = typeof article.tag_list === 'string'
+            ? article.tag_list.split(',').map(t => t.trim()).filter(Boolean)
+            : (article.tag_list || []);
+
+        const tagsHtml = tagList.map(t => `<span class="reader-tag">#${t}</span>`).join('');
+
+        const readingTime = article.reading_time_minutes || '?';
+        const reactions = article.public_reactions_count || 0;
+        const comments = article.comments_count || 0;
+        const publishDate = new Date(article.published_at).toLocaleDateString('vi-VN', {
+            year: 'numeric', month: 'long', day: 'numeric'
+        });
+
+        readerPanel.innerHTML = `
+            <div class="reader-content-wrap">
+                ${coverHtml}
+                <h1 class="reader-title">${article.title}</h1>
+
+                <div class="reader-meta-bar">
+                    ${avatarHtml}
+                    <span class="reader-author">${article.user?.name || ''}</span>
+                    <span>📅 ${publishDate}</span>
+                    <span>⏱ ${readingTime} phút đọc</span>
+                    <div class="reader-stats">
+                        <span class="reader-stat-item">❤️ ${reactions}</span>
+                        <span class="reader-stat-item">💬 ${comments}</span>
                     </div>
                 </div>
-            `;
-            feedDiv.appendChild(articleCard);
-        });
+
+                <div class="reader-tags-row">${tagsHtml}</div>
+
+                <div class="reader-body">
+                    ${article.body_html || `<p style="color:#94a3b8;">Nội dung bài viết không khả dụng.</p>`}
+                </div>
+
+                <a href="${article.url}" target="_blank" rel="noopener" class="reader-open-link">
+                    🔗 Xem bài gốc trên Dev.to ↗
+                </a>
+            </div>`;
+
+        // Scroll reader to top
+        readerPanel.scrollTop = 0;
+
     } catch (e) {
-        feedDiv.innerHTML = `<p style="text-align:center; color:red;">Lỗi tải bài viết: ${e.message}</p>`;
+        readerPanel.innerHTML = `<div style="padding:24px; color:#ef4444; text-align:center;">
+            <p>⚠️ ${e.message}</p>
+            <a href="${item.url}" target="_blank" class="reader-open-link" style="margin-top:12px;">
+                🔗 Mở bài viết trên Dev.to
+            </a>
+        </div>`;
     } finally {
-        hideLoader();
+        cardEl.classList.remove('loading-content');
     }
 }
 
