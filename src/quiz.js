@@ -240,8 +240,12 @@ export function resetQuiz() {
     AppState.quizHistory = [];
     AppState.historyIndex = -1;
     AppState.isCramMode = false;
-    AppState.pendingFillBlankWordId = null;
-    AppState.mcCorrectWordIdsForMatch = [];
+    AppState.quizFlowPhase = 'multiple_choice';
+    AppState.mcRoundQueueIds = [];
+    AppState.mcRoundWrongQueueIds = [];
+    AppState.mcRoundCorrectIds = [];
+    AppState.fillBlankQueueIds = [];
+    AppState.matchWordsWordIds = [];
     resetStudySessionIfNeeded(true);
     nextQuestion();
 }
@@ -249,6 +253,31 @@ export function resetQuiz() {
 export function showEmpty() {
     document.getElementById('quizArea').style.display = 'none';
     document.getElementById('emptyArea').style.display = 'block';
+}
+
+function ensureMultipleChoiceRound(filterValue, filteredPool, filteredDue) {
+    if ((AppState.mcRoundQueueIds?.length || 0) > 0) return;
+    if ((AppState.mcRoundCorrectIds?.length || 0) >= 6) return;
+
+    const fallbackPool = filterValue === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === filterValue);
+    const dueWithExample = filteredDue.filter(exampleContainsWord);
+    const poolWithExample = filteredPool.filter(exampleContainsWord);
+    const fallbackWithExample = fallbackPool.filter(exampleContainsWord);
+    const sourcePool = dueWithExample.length >= 6
+        ? dueWithExample
+        : (poolWithExample.length >= 6 ? poolWithExample : fallbackWithExample);
+    const roundSize = Math.min(6, sourcePool.length);
+    AppState.mcRoundQueueIds = sourcePool
+        .slice()
+        .sort(() => 0.5 - Math.random())
+        .slice(0, roundSize)
+        .map(w => w.id);
+}
+
+function showDoneArea() {
+    document.getElementById('quizArea').style.display = 'none';
+    document.getElementById('doneArea').style.display = 'block';
+    document.getElementById('emptyArea').style.display = 'none';
 }
 
 export function nextQuestion() {
@@ -264,27 +293,22 @@ export function nextQuestion() {
     const filteredDue = currentFilter === 'ALL' ? AppState.dueWords : AppState.dueWords.filter(w => w.l === currentFilter);
 
     const wordsWithEx = filteredPool.filter(w => w.ex && w.ex.trim().length > 0);
-    let quizType = 'multiple_choice';
-    const hasEnoughForMatch = AppState.mcCorrectWordIdsForMatch.length >= 4;
-    const hasPendingFillBlank = Boolean(AppState.pendingFillBlankWordId);
-    if (hasPendingFillBlank) {
-        quizType = 'fill_blank';
-    } else if (hasEnoughForMatch) {
-        quizType = 'match_words';
-    }
+    if (!AppState.quizFlowPhase) AppState.quizFlowPhase = 'multiple_choice';
+    let quizType = AppState.quizFlowPhase;
 
     let qData;
 
     if (quizType === 'match_words') {
-        const targetIds = AppState.mcCorrectWordIdsForMatch.slice(-4);
+        const targetIds = (AppState.matchWordsWordIds || []).slice(0, 6);
         const targetWords = targetIds
             .map(id => AppState.cachedWords.find(w => w.id === id))
             .filter(Boolean);
-        if (targetWords.length < 4) {
-            AppState.mcCorrectWordIdsForMatch = [];
+        if (targetWords.length < 2) {
+            AppState.quizFlowPhase = 'done';
             return nextQuestion();
         }
-        AppState.mcCorrectWordIdsForMatch = [];
+        AppState.matchWordsWordIds = [];
+        AppState.quizFlowPhase = 'done';
         
         // Tách riêng 2 bên: Trái (Từ gốc), Phải (Nghĩa) và xáo trộn độc lập
         const leftSide = targetWords.map(w => ({ id: w.id, text: w.w, type: 'word' })).sort(() => 0.5 - Math.random());
@@ -306,35 +330,14 @@ export function nextQuestion() {
         };
     } else if (quizType === 'fill_blank') {
         let questionItem = null;
-        const pendingWordId = AppState.pendingFillBlankWordId;
-        AppState.pendingFillBlankWordId = null;
-        if (pendingWordId) {
-            questionItem = AppState.cachedWords.find(w => w.id === pendingWordId) || null;
-        }
-        const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
-        if (!questionItem) {
-            const pickedId = getNextSessionWordId(preferredLang, true);
-            if (pickedId) questionItem = AppState.cachedWords.find(w => w.id === pickedId) || null;
-        }
+        const nextFillId = (AppState.fillBlankQueueIds || []).shift();
+        if (nextFillId) questionItem = AppState.cachedWords.find(w => w.id === nextFillId) || null;
         // Ensure the example actually contains the target word; otherwise blank can't be rendered
         if (questionItem && !exampleContainsWord(questionItem)) questionItem = null;
 
         if (!questionItem) {
-            const eligible = wordsWithEx.filter(exampleContainsWord);
-            if (eligible.length === 0) {
-                // No eligible fill-blank items -> fallback to multiple choice behavior
-                const pool = filteredPool.length >= 4 ? filteredPool : AppState.cachedWords;
-                const fallbackItem = pool[Math.floor(Math.random() * pool.length)];
-                qData = { type: 'multiple_choice', correct: fallbackItem, options: [fallbackItem, ...pool.filter(x => x.id !== fallbackItem.id).sort(() => 0.5 - Math.random()).slice(0, 3)].sort(() => 0.5 - Math.random()), selectedId: null, isAnswered: false };
-                AppState.quizHistory.push(qData);
-                AppState.historyIndex++;
-                document.getElementById('doneArea').style.display = 'none';
-                document.getElementById('quizArea').style.display = 'block';
-                document.getElementById('emptyArea').style.display = 'none';
-                renderQuestion(qData);
-                return;
-            }
-            questionItem = eligible[Math.floor(Math.random() * eligible.length)];
+            AppState.quizFlowPhase = 'multiple_choice';
+            return nextQuestion();
         }
         
         // Tạo distractors - CHỈ lấy từ CÙNG NGÔN NGỮ trong filteredPool
@@ -355,35 +358,30 @@ export function nextQuestion() {
         };
     } else {
         // MULTIPLE CHOICE (MẶC ĐỊNH)
-        let questionItem;
-        if (AppState.dueWords.length > 0) {
-            AppState.isCramMode = false;
-            const preferredLang = (currentFilter === 'ALL') ? null : currentFilter;
-            const pickedId = getNextSessionWordId(preferredLang, false);
-            if (pickedId) {
-                questionItem = AppState.cachedWords.find(w => w.id === pickedId);
-            } else {
-                const topN = AppState.dueWords.slice(0, 10);
-                questionItem = topN[Math.floor(Math.random() * topN.length)];
+        ensureMultipleChoiceRound(currentFilter, filteredPool, filteredDue);
+        if ((AppState.mcRoundQueueIds || []).length === 0) {
+            if ((AppState.mcRoundCorrectIds || []).length >= 6) {
+                AppState.matchWordsWordIds = AppState.mcRoundCorrectIds.slice(0, 6);
+                AppState.quizFlowPhase = 'match_words';
+                return nextQuestion();
             }
-        } else {
             if (!AppState.isCramMode) {
-                document.getElementById('quizArea').style.display = 'none';
-                document.getElementById('doneArea').style.display = 'block';
-                document.getElementById('emptyArea').style.display = 'none';
-
+                showDoneArea();
                 let rawWords = [...new Set(AppState.quizHistory.map(q => q.correct))].filter(Boolean);
                 if (rawWords.length === 0) {
-                    const currentFilter = document.getElementById('quizFilter').value;
                     rawWords = AppState.cachedWords.filter(w => (w.level || 0) > 0 && (currentFilter === 'ALL' ? true : w.l === currentFilter));
                 }
                 generateAIQuestions(rawWords);
                 return;
-            } else {
-                const pool = document.getElementById('quizFilter').value === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(x => x.l === document.getElementById('quizFilter').value);
-                if (pool.length < 4) return showEmpty();
-                questionItem = pool[Math.floor(Math.random() * pool.length)];
             }
+        }
+
+        let questionItem;
+        const nextId = AppState.mcRoundQueueIds.shift();
+        if (nextId) {
+            questionItem = AppState.cachedWords.find(w => w.id === nextId);
+        } else {
+            return nextQuestion();
         }
         if (!questionItem) return showEmpty();
 
@@ -409,6 +407,11 @@ export function nextQuestion() {
         const options = [questionItem, ...distractors].sort(() => 0.5 - Math.random());
 
         qData = { type: 'multiple_choice', correct: questionItem, options: options, selectedId: null, isAnswered: false };
+    }
+
+    if (quizType === 'done') {
+        showDoneArea();
+        return;
     }
 
     AppState.quizHistory.push(qData);
@@ -577,8 +580,9 @@ function renderFillBlank(q) {
 }
 
 export function handleAnswer(btn, selected, correct) {
-    AppState.quizHistory[AppState.historyIndex].selectedId = selected.id;
-    AppState.quizHistory[AppState.historyIndex].isAnswered = true;
+    const currentQuestion = AppState.quizHistory[AppState.historyIndex];
+    currentQuestion.selectedId = selected.id;
+    currentQuestion.isAnswered = true;
 
     document.querySelectorAll('.opt-btn').forEach(b => b.disabled = true);
     document.getElementById('btnNext').style.visibility = 'visible';
@@ -590,19 +594,16 @@ export function handleAnswer(btn, selected, correct) {
 
     const isCorrect = (selected.id === correct.id);
     if (isCorrect) {
-        const currentQuestion = AppState.quizHistory[AppState.historyIndex];
         if (currentQuestion?.type === 'multiple_choice') {
-            if (correct.ex && correct.ex.trim().length > 0 && exampleContainsWord(correct)) {
-                AppState.pendingFillBlankWordId = correct.id;
-            } else {
-                AppState.pendingFillBlankWordId = null;
-            }
-            const exists = AppState.mcCorrectWordIdsForMatch.includes(correct.id);
+            const exists = AppState.mcRoundCorrectIds.includes(correct.id);
             if (!exists) {
-                AppState.mcCorrectWordIdsForMatch.push(correct.id);
-                if (AppState.mcCorrectWordIdsForMatch.length > 4) {
-                    AppState.mcCorrectWordIdsForMatch = AppState.mcCorrectWordIdsForMatch.slice(-4);
-                }
+                AppState.mcRoundCorrectIds.push(correct.id);
+            }
+            if (exampleContainsWord(correct)) {
+                AppState.fillBlankQueueIds = [correct.id];
+                AppState.quizFlowPhase = 'fill_blank';
+            } else {
+                AppState.quizFlowPhase = 'multiple_choice';
             }
         }
         btn.classList.add('correct');
@@ -619,6 +620,7 @@ export function handleAnswer(btn, selected, correct) {
         document.getElementById('qMsg').innerHTML = "<span style='color:var(--danger)'>Sai rồi!</span>";
         document.getElementById('btnNext').style.visibility = 'visible';
         document.getElementById('sm2Actions').style.display = 'none';
+        if (currentQuestion?.type === 'multiple_choice') AppState.quizFlowPhase = 'multiple_choice';
         // Sai => Đặt lại Interval=1, Level=0, EF=2.5 (hoặc EF cũ mượn tạm)
         let oldEF = correct.easeFactor !== undefined ? correct.easeFactor : 2.5;
         let newEF = Math.max(1.3, oldEF - 0.2); // Tùy chỉnh phạt EF khi sai
