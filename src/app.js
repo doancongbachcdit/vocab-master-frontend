@@ -34,8 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainTabs = document.getElementById('mainTabs');
     if (mainTabs) {
         mainTabs.addEventListener('click', (e) => {
-            if (e.target.classList.contains('tab-btn')) {
-                const tabId = e.target.getAttribute('data-tab');
+            const btn = e.target.closest('.tab-btn');
+            if (btn) {
+                const tabId = btn.getAttribute('data-tab');
                 window.switchTab(tabId);
             }
         });
@@ -239,21 +240,31 @@ window.switchTab = function (tabId) {
         }
     });
 
-    if (tabId === 'list') renderList();
-    if (tabId === 'quiz') resetQuiz();
-    if (tabId === 'dictation') loadRandomDictation();
-    if (tabId === 'reading') {
-        const feedDiv = document.getElementById('devtoFeed');
-        if (feedDiv && feedDiv.innerHTML.trim() === '') {
-            fetchDevToArticles(false);
+    // Defer heavy DOM operations so the CSS animation (fadeSlideUp) doesn't drop frames (lag)
+    setTimeout(() => {
+        if (tabId === 'list') {
+            // Check if renderList exists globally or import it if needed
+            if (typeof renderList === 'function') renderList();
         }
-    }
-    if (tabId === 'listening') {
-        const ytDiv = document.getElementById('youtubeFeed');
-        if (ytDiv && ytDiv.innerHTML.trim() === '') {
-            fetchYouTubeVideos(false);
+        if (tabId === 'quiz') {
+            if (typeof resetQuiz === 'function') resetQuiz();
         }
-    }
+        if (tabId === 'dictation') {
+            if (typeof loadRandomDictation === 'function') loadRandomDictation();
+        }
+        if (tabId === 'reading') {
+            const feedDiv = document.getElementById('devtoFeed');
+            if (feedDiv && feedDiv.innerHTML.trim() === '') {
+                fetchDevToArticles(false);
+            }
+        }
+        if (tabId === 'listening') {
+            const ytDiv = document.getElementById('youtubeFeed');
+            if (ytDiv && ytDiv.innerHTML.trim() === '') {
+                fetchYouTubeVideos(false);
+            }
+        }
+    }, 50);
 }
 
 // 4. LOGIC ĐĂNG NHẬP
