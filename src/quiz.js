@@ -3,7 +3,8 @@ import { AppState } from './config.js';
 import { speakText } from './utils.js';
 import { generateAIQuestions } from './ai-services.js';
 import { updateWordSRSToBackend } from './api.js';
-import { renderList } from './ui.js';
+
+const QUIZ_ROUND_SIZE = 6;
 
 function getDayKey(d = new Date()) {
     const yyyy = d.getFullYear();
@@ -180,21 +181,6 @@ function getNextSessionWordId(preferredLang = null, requireExample = false) {
     return picked ? picked.id : null;
 }
 
-function getSessionWords({ preferredLang = null, requireExample = false } = {}) {
-    resetStudySessionIfNeeded(false);
-    buildSessionQueueFromDue();
-    const out = [];
-    for (const id of AppState.sessionQueue || []) {
-        if (AppState.sessionSeenIds.has(id)) continue;
-        const w = AppState.cachedWords.find(x => x.id === id);
-        if (!w) continue;
-        if (preferredLang && w.l !== preferredLang) continue;
-        if (requireExample && (!w.ex || w.ex.trim().length === 0)) continue;
-        out.push(w);
-    }
-    return out;
-}
-
 // Exported for Dictation to align selection logic
 export function getNextStudyItem({ preferredLang = null, requireExample = false } = {}) {
     const id = getNextSessionWordId(preferredLang, requireExample);
@@ -206,30 +192,63 @@ export function updateSRSStatus() {
     if (!AppState.currentUser) return;
     const now = Date.now();
     const filter = document.getElementById('quizFilter').value;
-    
-    // Đảm bảo pool không chứa từ trùng lặp ID (De-duplication safety layer)
+
+    // De-duplication: đảm bảo pool không chứa từ trùng ID
     const uniqueMap = new Map();
     AppState.cachedWords.forEach(w => uniqueMap.set(w.id, w));
     const uniqueWords = Array.from(uniqueMap.values());
 
-    let pool = filter === 'ALL' ? uniqueWords : uniqueWords.filter(w => w.l === filter);
+    // Pool theo bộ lọc hiện tại
+    const pool = filter === 'ALL' ? uniqueWords : uniqueWords.filter(w => w.l === filter);
+    const totalInPool = pool.length;
 
-    AppState.dueWords = pool.filter(w => (w.nextReview || 0) <= now).sort((a, b) => a.nextReview - b.nextReview);
+    // Tính từ đến hạn ôn (due words)
+    AppState.dueWords = pool
+        .filter(w => (w.nextReview || 0) <= now)
+        .sort((a, b) => (a.nextReview || 0) - (b.nextReview || 0));
+
     resetStudySessionIfNeeded(false);
-    const sessionLimit = AppState.sessionLimit || 30;
-    const sessionDone = AppState.sessionDoneCount || 0;
-    const dueCount = AppState.dueWords.length;
-    const quotaText = `Hôm nay: <b>${Math.min(sessionDone, sessionLimit)}/${sessionLimit}</b>`;
-    const dueText = dueCount > 0 ? `Cần ôn: <b class="due-badge">${dueCount}</b> từ` : `<span style="color:var(--success)">Đã học xong!</span>`;
-    const carryText = dueCount > sessionLimit ? ` <span style="color:#64748b">(còn lại dời sang phiên sau)</span>` : '';
-    document.getElementById('reviewStatus').innerHTML = `${dueText} · ${quotaText}${carryText}`;
 
-    const learnedCount = AppState.cachedWords.filter(w => (w.level || 0) > 0).length;
-    const percent = Math.min((learnedCount / 300) * 100, 100);
+    const sessionLimit = AppState.sessionLimit || 30;
+    const sessionDone  = Math.min(AppState.sessionDoneCount || 0, sessionLimit);
+    const dueCount     = AppState.dueWords.length;
+    const learnedInPool = pool.filter(w => (w.level || 0) > 0).length;
+
+    // --- Phần 1: Trạng thái "Cần ôn" ---
+    let dueSegment;
+    if (dueCount === 0) {
+        // Không còn từ nào đến hạn
+        if (sessionDone >= sessionLimit) {
+            dueSegment = `<span style="color:var(--success)">🎉 Xuất sắc! Hoàn thành quota hôm nay!</span>`;
+        } else {
+            dueSegment = `<span style="color:var(--success)">✅ Đã học xong!</span>`;
+        }
+    } else {
+        // Còn từ cần ôn — phân biệt "quá hạn nhiều" vs "bình thường"
+        const overQuota = dueCount > sessionLimit;
+        const urgencyIcon = overQuota ? '🔥 ' : '';
+        dueSegment = `${urgencyIcon}Cần ôn: <b class="due-badge">${dueCount}</b> từ`
+            + ` <span style="color:#64748b">(tổng: ${totalInPool})</span>`;
+    }
+
+    // --- Phần 2: Quota hôm nay ---
+    const quotaSegment = `Hôm nay: <b>${sessionDone}/${sessionLimit}</b>`;
+
+    // --- Phần 3: Cảnh báo carry-over nếu vượt quota ---
+    const carrySegment = (dueCount > sessionLimit)
+        ? ` <span style="color:#f59e0b; font-size:0.85em">⚠️ ${dueCount - sessionLimit} từ dời sang phiên sau</span>`
+        : '';
+
+    document.getElementById('reviewStatus').innerHTML =
+        `${dueSegment} · ${quotaSegment}${carrySegment}`;
+
+    // --- Progress Bar: dựa trên pool hiện tại (theo filter) ---
+    const progressMax  = Math.max(totalInPool, 1); // tránh chia 0
+    const percent      = Math.min((learnedInPool / progressMax) * 100, 100);
     const pb = document.getElementById('progressBar');
     const pt = document.getElementById('progressText');
     if (pb) pb.style.width = percent + '%';
-    if (pt) pt.innerText = `${learnedCount}/300`;
+    if (pt) pt.innerText = `${learnedInPool}/${totalInPool}`;
 }
 
 export function speakCurrent() {
@@ -240,14 +259,24 @@ export function resetQuiz() {
     AppState.quizHistory = [];
     AppState.historyIndex = -1;
     AppState.isCramMode = false;
+    resetQuizFlowState();
+    resetStudySessionIfNeeded(true);
+    nextQuestion();
+}
+
+function resetQuizFlowState() {
     AppState.quizFlowPhase = 'multiple_choice';
     AppState.mcRoundQueueIds = [];
     AppState.mcRoundWrongQueueIds = [];
     AppState.mcRoundCorrectIds = [];
     AppState.fillBlankQueueIds = [];
     AppState.matchWordsWordIds = [];
-    resetStudySessionIfNeeded(true);
-    nextQuestion();
+}
+
+function clearRoundProgressState() {
+    AppState.mcRoundCorrectIds = [];
+    AppState.mcRoundQueueIds = [];
+    AppState.mcRoundWrongQueueIds = [];
 }
 
 export function showEmpty() {
@@ -257,16 +286,18 @@ export function showEmpty() {
 
 function ensureMultipleChoiceRound(filterValue, filteredPool, filteredDue) {
     if ((AppState.mcRoundQueueIds?.length || 0) > 0) return;
+    if ((AppState.mcRoundWrongQueueIds?.length || 0) > 0) return;
     if ((AppState.mcRoundCorrectIds?.length || 0) >= 6) return;
 
     const fallbackPool = filterValue === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === filterValue);
-    const dueWithExample = filteredDue.filter(exampleContainsWord);
+    const baseDue = AppState.isCramMode ? filteredPool : filteredDue;
+    const dueWithExample = baseDue.filter(exampleContainsWord);
     const poolWithExample = filteredPool.filter(exampleContainsWord);
     const fallbackWithExample = fallbackPool.filter(exampleContainsWord);
-    const sourcePool = dueWithExample.length >= 6
+    const sourcePool = dueWithExample.length >= QUIZ_ROUND_SIZE
         ? dueWithExample
-        : (poolWithExample.length >= 6 ? poolWithExample : fallbackWithExample);
-    const roundSize = Math.min(6, sourcePool.length);
+        : (poolWithExample.length >= QUIZ_ROUND_SIZE ? poolWithExample : (fallbackWithExample.length > 0 ? fallbackWithExample : fallbackPool));
+    const roundSize = Math.min(QUIZ_ROUND_SIZE, sourcePool.length);
     AppState.mcRoundQueueIds = sourcePool
         .slice()
         .sort(() => 0.5 - Math.random())
@@ -292,7 +323,6 @@ export function nextQuestion() {
     const filteredPool = currentFilter === 'ALL' ? AppState.cachedWords : AppState.cachedWords.filter(w => w.l === currentFilter);
     const filteredDue = currentFilter === 'ALL' ? AppState.dueWords : AppState.dueWords.filter(w => w.l === currentFilter);
 
-    const wordsWithEx = filteredPool.filter(w => w.ex && w.ex.trim().length > 0);
     if (!AppState.quizFlowPhase) AppState.quizFlowPhase = 'multiple_choice';
     let quizType = AppState.quizFlowPhase;
 
@@ -304,10 +334,13 @@ export function nextQuestion() {
             .map(id => AppState.cachedWords.find(w => w.id === id))
             .filter(Boolean);
         if (targetWords.length < 2) {
+            clearRoundProgressState();
             AppState.quizFlowPhase = 'done';
             return nextQuestion();
         }
         AppState.matchWordsWordIds = [];
+        // Clear round result so match_words does not retrigger.
+        clearRoundProgressState();
         AppState.quizFlowPhase = 'done';
         
         // Tách riêng 2 bên: Trái (Từ gốc), Phải (Nghĩa) và xáo trộn độc lập
@@ -359,9 +392,9 @@ export function nextQuestion() {
     } else {
         // MULTIPLE CHOICE (MẶC ĐỊNH)
         ensureMultipleChoiceRound(currentFilter, filteredPool, filteredDue);
-        if ((AppState.mcRoundQueueIds || []).length === 0) {
-            if ((AppState.mcRoundCorrectIds || []).length >= 6) {
-                AppState.matchWordsWordIds = AppState.mcRoundCorrectIds.slice(0, 6);
+        if ((AppState.mcRoundQueueIds || []).length === 0 && (AppState.mcRoundWrongQueueIds || []).length === 0) {
+            if ((AppState.mcRoundCorrectIds || []).length >= QUIZ_ROUND_SIZE) {
+                AppState.matchWordsWordIds = AppState.mcRoundCorrectIds.slice(0, QUIZ_ROUND_SIZE);
                 AppState.quizFlowPhase = 'match_words';
                 return nextQuestion();
             }
@@ -374,10 +407,14 @@ export function nextQuestion() {
                 generateAIQuestions(rawWords);
                 return;
             }
+            // Cram mode but still no queue => no available words for current filter.
+            return showEmpty();
         }
 
         let questionItem;
-        const nextId = AppState.mcRoundQueueIds.shift();
+        const nextId = (AppState.mcRoundQueueIds || []).length > 0
+            ? AppState.mcRoundQueueIds.shift()
+            : AppState.mcRoundWrongQueueIds.shift();
         if (nextId) {
             questionItem = AppState.cachedWords.find(w => w.id === nextId);
         } else {
@@ -620,7 +657,14 @@ export function handleAnswer(btn, selected, correct) {
         document.getElementById('qMsg').innerHTML = "<span style='color:var(--danger)'>Sai rồi!</span>";
         document.getElementById('btnNext').style.visibility = 'visible';
         document.getElementById('sm2Actions').style.display = 'none';
-        if (currentQuestion?.type === 'multiple_choice') AppState.quizFlowPhase = 'multiple_choice';
+        if (currentQuestion?.type === 'multiple_choice') {
+            AppState.quizFlowPhase = 'multiple_choice';
+            const alreadyCorrect = AppState.mcRoundCorrectIds.includes(correct.id);
+            const alreadyQueued = AppState.mcRoundWrongQueueIds.includes(correct.id);
+            if (!alreadyCorrect && !alreadyQueued) {
+                AppState.mcRoundWrongQueueIds.push(correct.id);
+            }
+        }
         // Sai => Đặt lại Interval=1, Level=0, EF=2.5 (hoặc EF cũ mượn tạm)
         let oldEF = correct.easeFactor !== undefined ? correct.easeFactor : 2.5;
         let newEF = Math.max(1.3, oldEF - 0.2); // Tùy chỉnh phạt EF khi sai
@@ -789,4 +833,11 @@ export function handleFillBlankOptionClick(word) {
     renderQuestion(qData);
 }
 
-export function forceReviewMode() { AppState.isCramMode = true; nextQuestion(); }
+export function forceReviewMode() {
+    AppState.isCramMode = true;
+    resetQuizFlowState();
+    // Keep history focused on a fresh cram run.
+    AppState.quizHistory = [];
+    AppState.historyIndex = -1;
+    nextQuestion();
+}
